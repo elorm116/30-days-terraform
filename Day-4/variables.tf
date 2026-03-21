@@ -12,7 +12,13 @@ variable "instance_type" {
 variable "server_port" {
   description = "Port for the web server"
   type = number
-  default = 80
+  default = 8080
+}
+
+variable "alb_port" {
+  description = "The port the ALB listens on"
+  type        = number
+  default     = 80
 }
 
 variable "min_size" {
