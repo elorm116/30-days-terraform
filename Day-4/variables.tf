@@ -9,14 +9,20 @@ variable "instance_type" {
   default = "t3.micro"
 }
 
-variable "cidr_block" {
-  description = "CIDR Block for Security Group"
-  type = string
-  default = "0.0.0.0/0"
-}
-
 variable "server_port" {
   description = "Port for the web server"
   type = number
   default = 80
+}
+
+variable "min_size" {
+  description = "Minimum number of instances"
+  type        = number
+  default     = 2
+}
+
+variable "max_size" {
+  description = "Maximum number of instances"
+  type        = number
+  default     = 5
 }

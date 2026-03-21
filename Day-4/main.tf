@@ -2,71 +2,196 @@ provider "aws" {
   region = var.region
 }
 
-# 1. Automatically find your Default VPC
+# -----------------------------
+# DATA SOURCES
+# -----------------------------
+
 data "aws_vpc" "default" {
   default = true
 }
 
-# 2. Security Group (The "Bouncer")
-resource "aws_security_group" "web-sg" {
-  name        = "web-server-sg"
-  description = "Allow HTTP inbound traffic"
-  vpc_id      = data.aws_vpc.default.id
+data "aws_availability_zones" "all" {
+  state = "available"  # This excludes opted-out or unavailable AZs
+}
 
-  ingress {
-    from_port   = var.server_port
-    to_port     = var.server_port
-    protocol    = "tcp"
-    cidr_blocks = [var.cidr_block]
+data "aws_subnets" "default" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.default.id]
   }
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [var.cidr_block]
-  }
-
-  tags = {
-    Name = "web-server-sg"
+  filter {
+    name   = "availabilityZone"
+    values = data.aws_availability_zones.all.names
   }
 }
 
-# 3. Data Source for the latest Amazon Linux 2023 AMI
 data "aws_ami" "amazon_linux" {
   most_recent = true
   owners      = ["amazon"]
+
   filter {
     name   = "name"
     values = ["al2023-ami-*-x86_64"]
   }
 }
 
-# 4. My Web Server 
-resource "aws_instance" "web-server" {
-  ami           = data.aws_ami.amazon_linux.id
-  instance_type = var.instance_type
+# -----------------------------
+# SECURITY GROUP - ALB
+# -----------------------------
 
-  # Using the Security Group ID is best practice
-  vpc_security_group_ids = [aws_security_group.web-sg.id]
+resource "aws_security_group" "alb_sg" {
+  name   = "alb-sg"
+  vpc_id = data.aws_vpc.default.id
 
-  # This script runs on boot to install Apache and create your page
-  user_data = <<-EOF
-              #!/bin/bash
-              dnf update -y
-              dnf install -y httpd
-              systemctl start httpd
-              systemctl enable httpd
-              echo "<h1>Hello from 30 Days Terraform Challenge 🚀</h1>" > /var/www/html/index.html
-              EOF
+  ingress {
+    from_port   = var.server_port
+    to_port     = var.server_port
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   tags = {
-    Name = "Terraform-Web-Server"
+    Name = "alb-sg"
   }
 }
 
-# 5. Output the Public IP so you can test it immediately
-output "ec2_instance_ip" {
-  description = "Public IP of the web server"
-  value = aws_instance.web-server.public_ip
+# -----------------------------
+# SECURITY GROUP - EC2 INSTANCES
+# -----------------------------
+
+resource "aws_security_group" "web_sg" {
+  name   = "web-sg"
+  vpc_id = data.aws_vpc.default.id
+
+  ingress {
+    from_port       = var.server_port
+    to_port         = var.server_port
+    protocol        = "tcp"
+    security_groups = [aws_security_group.alb_sg.id] # This only allows traffic from ALB
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "web-sg"
+  }
+}
+
+# -----------------------------
+# LAUNCH TEMPLATE
+# -----------------------------
+
+resource "aws_launch_template" "web" {
+  name          = "web-template"
+  image_id      = data.aws_ami.amazon_linux.id
+  instance_type = var.instance_type
+
+  vpc_security_group_ids = [aws_security_group.web_sg.id]
+
+  user_data = base64encode(<<-EOF
+              #!/bin/bash
+              dnf install -y httpd
+              systemctl start httpd
+              systemctl enable httpd
+              echo "<h1>Hello from 30 Days Terraform Challenge. It is now highly available! 🚀</h1>" > /var/www/html/index.html
+              EOF
+  )
+
+  tag_specifications {
+    resource_type = "instance"
+
+    tags = {
+      Name = "terraform-asg-instance"
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# -----------------------------
+# LOAD BALANCER
+# -----------------------------
+
+resource "aws_lb" "web" {
+  name               = "web-alb"
+  load_balancer_type = "application"
+  subnets            = data.aws_subnets.default.ids
+  security_groups    = [aws_security_group.alb_sg.id] # The ALB uses its own SG we defined earlier
+}
+
+# -----------------------------
+# TARGET GROUP
+# -----------------------------
+
+resource "aws_lb_target_group" "web" {
+  name     = "web-tg"
+  port     = var.server_port
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
+
+  health_check {
+    path                = "/"
+    port                = var.server_port
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    interval            = 15
+  }
+}
+
+# -----------------------------
+# LISTENER
+# -----------------------------
+
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.web.arn
+  port              = var.server_port
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
+}
+
+# -----------------------------
+# AUTO SCALING GROUP
+# -----------------------------
+
+resource "aws_autoscaling_group" "web" {
+  min_size         = var.min_size
+  max_size         = var.max_size
+  desired_capacity = 2
+
+  vpc_zone_identifier = data.aws_subnets.default.ids
+
+  health_check_type         = "ELB"
+  health_check_grace_period = 300
+
+  launch_template {
+    id      = aws_launch_template.web.id
+    version = "$Latest"
+  }
+
+  target_group_arns = [aws_lb_target_group.web.arn]
+
+  tag {
+    key                 = "Name"
+    value               = "terraform-asg"
+    propagate_at_launch = true
+  }
 }

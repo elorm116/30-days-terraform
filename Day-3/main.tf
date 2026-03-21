@@ -26,6 +26,10 @@ resource "aws_security_group" "web-sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
+  tags = {
+    Name = "web-server-sg"
+  }
 }
 
 # 3. Data Source for the latest Amazon Linux 2023 AMI
