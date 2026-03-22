@@ -5,10 +5,13 @@
 *.tfvars
 *.tfvars.json
 
+# Backend config (contains real bucket name)
+backend.hcl
+
 
 # Mac system files
 .DS_Store
 
 # Logs
 *.log
-*.log.*
+*.log.*backend.hcl

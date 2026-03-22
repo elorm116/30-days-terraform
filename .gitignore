@@ -4,6 +4,8 @@
 *.tfstate.backup
 *.tfvars
 *.tfvars.json
+*.backend.hcl
+
 
 
 # Mac system files

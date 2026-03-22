@@ -1,18 +1,18 @@
 variable "region" {
-  type = string
+  type    = string
   default = "us-east-1"
 }
 
 variable "instance_type" {
   description = "EC2 Instance Type"
-  type = string
-  default = "t3.micro"
+  type        = string
+  default     = "t3.micro"
 }
 
 variable "server_port" {
   description = "Port for the web server"
-  type = number
-  default = 8080
+  type        = number
+  default     = 8080
 }
 
 variable "alb_port" {

@@ -11,7 +11,7 @@ data "aws_vpc" "default" {
 }
 
 data "aws_availability_zones" "all" {
-  state = "available"  # This excludes opted-out or unavailable AZs
+  state = "available" # This excludes opted-out or unavailable AZs
 }
 
 data "aws_subnets" "default" {
@@ -44,7 +44,7 @@ resource "aws_security_group" "alb_sg" {
   name   = "alb-sg"
   vpc_id = data.aws_vpc.default.id
 
-# Public Traffic comes in on Port 80
+  # Public Traffic comes in on Port 80
   ingress {
     from_port   = var.alb_port
     to_port     = var.alb_port
@@ -72,7 +72,7 @@ resource "aws_security_group" "web_sg" {
   name   = "web-sg"
   vpc_id = data.aws_vpc.default.id
 
-# Only allow traffic from the ALB Security Group on port 8080
+  # Only allow traffic from the ALB Security Group on port 8080
   ingress {
     from_port       = var.server_port
     to_port         = var.server_port
@@ -106,7 +106,7 @@ resource "aws_launch_template" "web" {
   user_data = base64encode(<<-EOF
               #!/bin/bash
               dnf install -y httpd
-              sed -i 's/Listen 80/Listen ${var.server_port}/' /etc/httpd/conf/httpd.conf
+              sed -i 's/^Listen 80$/Listen ${var.server_port}/' /etc/httpd/conf/httpd.conf
               systemctl start httpd
               systemctl enable httpd
               echo "<h1>Hello from 30 Days Terraform Challenge. It is now highly available! 🚀</h1>" > /var/www/html/index.html
@@ -153,6 +153,8 @@ resource "aws_lb_target_group" "web" {
     healthy_threshold   = 2
     unhealthy_threshold = 2
     interval            = 15
+    timeout             = 5
+    matcher             = "200"
   }
 }
 
@@ -165,9 +167,36 @@ resource "aws_lb_listener" "http" {
   port              = var.alb_port
   protocol          = "HTTP"
 
+  # Default action — catches anything that doesn't match a rule below
   default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "404: page not found"
+      status_code  = 404
+    }
+  }
+}
+
+# -----------------------------
+# LISTENER RULE
+# -----------------------------
+
+resource "aws_lb_listener_rule" "web" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 100
+
+  # Forward matching requests to the target group
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.web.arn
+  }
+
+  # Match ALL paths — equivalent to your previous catch-all forward
+  condition {
+    path_pattern {
+      values = ["*"]
+    }
   }
 }
 
