@@ -12,6 +12,13 @@ data "aws_vpc" "default" {
 
 data "aws_availability_zones" "all" {
   state = "available" # This excludes opted-out or unavailable AZs
+  
+ filter {
+    name   = "opt-in-status"
+    values = ["opt-in-not-required"]
+  }
+  
+  exclude_zone_ids = ["use1-az3"]  # us-east-1e zone ID
 }
 
 data "aws_subnets" "default" {
