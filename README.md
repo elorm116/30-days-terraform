@@ -15,7 +15,8 @@ Small, day-by-day Terraform exercises using AWS.
 - `Day-1/` — single EC2 web server
 - `Day-2/` — placeholder
 - `Day-3/` — single EC2 web server (cleaner structure)
-- `Day-4/` — highly available web tier: ALB + Auto Scaling Group (+ optional remote state)
+- `Day-4-and-5/` — highly available web tier: ALB + Auto Scaling Group (+ optional remote state)
+- `Day-7/` — Terraform state isolation: workspaces vs file layouts (+ remote state data source)
 
 ## How to run a day
 
@@ -35,4 +36,4 @@ terraform destroy
 ## State files
 
 - Local state files (`terraform.tfstate*`) are ignored via `.gitignore`.
-- Day 4 supports remote state in S3 with **S3-native locking** (`use_lockfile = true`). See `Day-4/README.md`.
+- Day 4/5 supports remote state in S3 with **S3-native locking** (`use_lockfile = true`). See `Day-4-and-5/README.md`.
