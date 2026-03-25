@@ -1,0 +1,7 @@
+# Local backend config
+backend.hcl
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.backup

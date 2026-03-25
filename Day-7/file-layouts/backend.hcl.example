@@ -1,0 +1,5 @@
+# Copy to backend.hcl and fill in values, then run terraform init like:
+#   terraform init -backend-config=/define-path/backend.hcl
+
+bucket = "YOUR_UNIQUE_S3_BUCKET_NAME"
+region = "us-east-1"
