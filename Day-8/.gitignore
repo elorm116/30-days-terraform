@@ -1,0 +1,42 @@
+# Day-8 (Terraform) - ignore local/sensitive artifacts
+# This file only applies within Day-8/
+
+# Terraform working directory
+.terraform/
+
+# Terraform state
+*.tfstate
+*.tfstate.*
+
+# Terraform plan output
+*.tfplan
+
+# Backend config (often environment-specific)
+backend.hcl
+
+# Variable files (often contain secrets)
+*.tfvars
+*.tfvars.json
+*.auto.tfvars
+*.auto.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terraform CLI config (can contain credentials)
+.terraformrc
+terraform.rc
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Common secret/key files
+.env
+.env.*
+*.pem
+*.key
+*.p12
