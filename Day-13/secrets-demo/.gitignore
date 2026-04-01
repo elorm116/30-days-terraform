@@ -1,0 +1,28 @@
+# Terraform — never commit these
+.terraform/
+.terraform.lock.hcl
+
+# State files — live in S3, never locally
+*.tfstate
+*.tfstate.backup
+
+# Variable files — may contain sensitive values
+*.tfvars
+*.tfvars.json
+
+# Backend config — contains bucket names and keys
+backend.hcl
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Sensitive data
+*.pem
+*.key
