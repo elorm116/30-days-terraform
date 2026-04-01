@@ -129,7 +129,7 @@ resource "aws_launch_template" "web" {
     sed -i 's/^Listen 80$/Listen ${var.server_port}/' /etc/httpd/conf/httpd.conf
     systemctl enable httpd
     systemctl start httpd
-    echo "<h1>${var.cluster_name} — Highly Available! 🚀</h1>" > /var/www/html/index.html
+    echo "<h1>${var.cluster_name} — ${var.custom_message} 🚀</h1>" > /var/www/html/index.html
     EOF
   )
 

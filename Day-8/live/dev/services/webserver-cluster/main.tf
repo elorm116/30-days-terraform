@@ -4,12 +4,14 @@
 # All the infrastructure logic lives inside the module.
 
 module "webserver_cluster" {
-  source = "../../../../modules/services/webserver-cluster"
+  source = "github.com/elorm116/terraform-aws-webserver-cluster?ref=v0.0.2"
 
   cluster_name  = "webservers-dev"
   instance_type = "t3.micro"
   min_size      = 2
   max_size      = 4
+  custom_message = "Dev — Testing Latest Module Version"
+
 }
 
 # Surface the ALB DNS name after apply so you can test immediately

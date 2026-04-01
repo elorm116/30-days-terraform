@@ -30,3 +30,9 @@ variable "max_size" {
   description = "Maximum number of EC2 instances the ASG can scale to. No default — caller must decide this per environment based on expected load."
   type        = number
 }
+
+variable "custom_message" {
+  description = "Custom message displayed on the web server home page."
+  type        = string
+  default     = "Highly Available"
+}

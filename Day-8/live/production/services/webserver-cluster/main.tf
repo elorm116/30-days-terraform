@@ -4,7 +4,7 @@
 # Zero code duplication with dev.
 
 module "webserver_cluster" {
-  source = "../../../../modules/services/webserver-cluster"
+  source = "github.com/elorm116/terraform-aws-webserver-cluster?ref=v0.0.1"
 
   cluster_name  = "webservers-production"
   instance_type = "t3.small"
