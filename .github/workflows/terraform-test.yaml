@@ -39,8 +39,21 @@ jobs:
 
       - name: Run Unit Tests
         working-directory: Day-18/modules/services/webserver-cluster
+        env:
+          # Pass all required variables via environment — ensures destroy phase works
+          TF_VAR_cluster_name:        "test-cluster"
+          TF_VAR_environment:         "dev"
+          TF_VAR_min_size:            "1"
+          TF_VAR_max_size:            "2"
+          TF_VAR_instance_type:       "t3.micro"
+          TF_VAR_server_port:         "8080"
+          TF_VAR_project_name:        "30-day-terraform"
+          TF_VAR_team_name:           "devops"
+          TF_VAR_enable_monitoring:   "false"
+          TF_VAR_cpu_alarm_threshold: "80"
+          TF_VAR_app_version:         "v1"
         run: terraform test
-        # No AWS credentials needed — mock_provider handles data sources
+        # Variables passed via TF_VAR_* env vars reach destroy phase reliably
 
   # -----------------------------
   # INTEGRATION TESTS — run on push to main only

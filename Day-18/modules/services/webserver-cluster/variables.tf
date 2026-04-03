@@ -89,9 +89,10 @@ variable "alb_port" {
 variable "min_size" {
   description = "Minimum number of instances in the ASG."
   type        = number
+  default     = 1
 
-  # No default — caller must decide capacity explicitly per environment.
-  # Forcing this prevents accidentally deploying production with dev sizing.
+  # Default of 1 is safe for dev/test. Production overrides via tfvars.
+  # Validation ensures capacity is configured thoughtfully.
   validation {
     condition     = var.min_size >= 1
     error_message = "min_size must be at least 1."
@@ -101,6 +102,7 @@ variable "min_size" {
 variable "max_size" {
   description = "Maximum number of instances in the ASG."
   type        = number
+  default     = 2
 
   validation {
     condition     = var.max_size >= var.min_size

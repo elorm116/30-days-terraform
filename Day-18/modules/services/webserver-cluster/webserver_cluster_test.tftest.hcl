@@ -104,6 +104,19 @@ variables {
 run "validate_asg_name_prefix" {
   command = plan
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition     = aws_autoscaling_group.web.name_prefix == "test-cluster-asg-"
     error_message = "ASG name_prefix must be <cluster_name>-asg- to ensure uniqueness per deployment"
@@ -118,6 +131,19 @@ run "validate_asg_name_prefix" {
 run "validate_launch_template_instance_type" {
   command = plan
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition     = aws_launch_template.web.instance_type == "t3.micro"
     error_message = "Launch template instance type must match var.instance_type"
@@ -131,6 +157,19 @@ run "validate_launch_template_instance_type" {
 # the load balancer will never receive traffic — a silent failure.
 run "validate_alb_sg_port" {
   command = plan
+
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
 
   assert {
     condition = anytrue([
@@ -157,6 +196,19 @@ run "validate_web_sg_server_port" {
   # plan-only runs.
   command = apply
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition = anytrue([
       for rule in aws_security_group.web_sg.ingress :
@@ -178,6 +230,19 @@ run "validate_web_sg_server_port" {
 run "validate_elb_health_check_type" {
   command = plan
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition     = aws_autoscaling_group.web.health_check_type == "ELB"
     error_message = "ASG must use ELB health checks, not EC2 health checks"
@@ -191,6 +256,19 @@ run "validate_elb_health_check_type" {
 # This test verifies the locals logic works correctly for dev.
 run "validate_dev_instance_type_from_locals" {
   command = plan
+
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
 
   assert {
     condition     = aws_launch_template.web.instance_type == "t3.micro"
@@ -207,7 +285,16 @@ run "validate_production_instance_type_from_locals" {
   command = plan
 
   variables {
-    environment = "production"
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "production"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
   }
 
   assert {
@@ -222,6 +309,19 @@ run "validate_production_instance_type_from_locals" {
 run "validate_dev_log_retention" {
   command = plan
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition     = aws_cloudwatch_log_group.web.retention_in_days == 7
     error_message = "Dev environment must have 7 day log retention"
@@ -232,7 +332,16 @@ run "validate_production_log_retention" {
   command = plan
 
   variables {
-    environment = "production"
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "production"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
   }
 
   assert {
@@ -249,6 +358,19 @@ run "validate_production_log_retention" {
 run "validate_monitoring_disabled" {
   command = plan
 
+  variables {
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
+  }
+
   assert {
     condition     = length(aws_sns_topic.alerts) == 0
     error_message = "SNS topic must not be created when enable_monitoring = false"
@@ -262,8 +384,16 @@ run "validate_monitoring_enabled" {
   command = plan
 
   variables {
-    enable_monitoring = true
-    environment       = "production"
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "production"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = true
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
   }
 
   assert {
@@ -291,7 +421,16 @@ run "validate_bad_environment_rejected" {
   command = plan
 
   variables {
-    environment = "prod" # invalid — must be dev, staging, or production
+    cluster_name        = "test-cluster"
+    instance_type       = "t3.micro"
+    min_size            = 1
+    max_size            = 2
+    environment         = "prod"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
   }
 
   expect_failures = [
@@ -306,7 +445,16 @@ run "validate_bad_instance_type_rejected" {
   command = plan
 
   variables {
-    instance_type = "m5.xlarge" # invalid — must be t2 or t3 family
+    cluster_name        = "test-cluster"
+    instance_type       = "m5.xlarge"
+    min_size            = 1
+    max_size            = 2
+    environment         = "dev"
+    project_name        = "test-project"
+    team_name           = "test-team"
+    enable_monitoring   = false
+    cpu_alarm_threshold = 80
+    app_version         = "v1"
   }
 
   expect_failures = [
