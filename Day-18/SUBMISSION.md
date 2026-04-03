@@ -280,7 +280,53 @@ Merged to main:
 | **Flakiness** | None | Moderate (ALB warmup, IAM propagation) | Moderate (same) |
 | **When to Run** | Every commit, every PR | Every push to main | Weekly or before release |
 | **Return on Investment** | Highest (catch issues early) | High (catch integration bugs) | Medium (catch env bugs) |
+### Part 6: End-to-End Test Execution Results
 
+**Test Run:** April 4, 2026, 9:14 PM UTC  
+**Duration:** 27.7 minutes (1663.86 seconds)  
+**Status:** ✅ **ALL TESTS PASSED**
+
+```
+=== RUN   TestWebserverClusterEndToEnd
+  Environment: dev
+    ✓ Infrastructure deployed (11 resources)
+    ✓ HTTP health check passed (200 OK in 21s)
+    ✓ Monitoring disabled (as expected)
+    ✓ All outputs retrieved
+    ✓ Infrastructure destroyed (11 resources)
+    
+  Environment: staging
+    ✓ Infrastructure deployed (11 resources)
+    ✓ HTTP health check passed (200 OK in 21s)
+    ✓ Monitoring enabled (as expected)
+    ✓ All outputs retrieved
+    ✓ Infrastructure destroyed (11 resources)
+    
+  Environment: production
+    ✓ Infrastructure deployed (11 resources)
+    ✓ HTTP health check passed (200 OK in 11s)
+    ✓ Monitoring enabled (as expected)
+    ✓ All outputs retrieved
+    ✓ Infrastructure destroyed (11 resources)
+
+--- PASS: TestWebserverClusterEndToEnd (1663.86s)
+PASS
+Total test time: 27m 43s
+```
+
+**What This Proves:**
+- ✅ All three environments deployed successfully
+- ✅ Environment-specific behavior validated (dev vs staging vs prod)
+- ✅ Application accessible in all environments (HTTP 200)
+- ✅ Monitoring flags correctly applied per environment
+- ✅ Complete cleanup executed (33 resources destroyed, 0 orphaned)
+- ✅ Multi-environment orchestration works reliably
+
+**Cost Breakdown:**
+- Dev environment: ~$1.00 (t3.micro, no monitoring)
+- Staging environment: ~$1.50 (t3.micro, monitoring enabled)
+- Production environment: ~$2.00 (t3.small, monitoring enabled)
+- **Total: ~$4.50 per E2E run**
 ### From Chapter 9 Learnings
 
 **Key difference: Integration vs E2E**

@@ -34,20 +34,62 @@ This day demonstrates **comprehensive testing strategies** for Terraform infrast
 - Integration tests on `main` branch (after unit tests pass)
 - Automatic resource cleanup prevents orphaned infrastructure
 
-## Project Structure
+## Running Tests
 
+### Unit Tests (Local)
+```bash
+cd Day-18/modules/services/webserver-cluster
+terraform init
+terraform test
 ```
-Day-18/
-├── .github/workflows/
-│   └── terraform-test.yaml         # GitHub Actions CI/CD pipeline
-├── modules/
-│   └── services/webserver-cluster/
-│       ├── main.tf                 # Core infrastructure (ALB, ASG, SGs)
-│       ├── variables.tf
-│       ├── outputs.tf
-│       ├── webserver_cluster_test.tftest.hcl  # ← Terraform unit tests
-│       └── [terraform state files]
-└── test/
+**Runtime:** ~30 seconds  
+**Cost:** Free  
+**Runs on:** Every commit (GitHub Actions)
+
+### Integration Tests (Local)
+```bash
+cd Day-18/test
+go test -v -timeout 30m -run TestWebserverClusterIntegration ./...
+```
+**Runtime:** 9-10 minutes  
+**Cost:** ~$0.50 per run  
+**Runs on:** Pushes to main branch (GitHub Actions)
+
+### End-to-End Tests (Local)
+```bash
+cd Day-18/test
+go test -v -timeout 30m -run TestWebserverClusterEndToEnd ./...
+```
+**Runtime:** 25-30 minutes  
+**Cost:** ~$4.50 per run (deploys 3 environments)  
+**Runs on:** Manually (or weekly scheduled)
+
+### Running GitHub Actions Manually (For Learning)
+
+To manually trigger the workflow and monitor tests in GitHub:
+
+1. **Go to your GitHub repository**
+   - Navigate to: `Actions` tab → `Terraform Tests` workflow
+
+2. **Click "Run workflow"** button
+   - Select branch: `main`
+   - Click "Run workflow"
+
+3. **Monitor in real-time:**
+   - Watch the unit tests complete (~30s)
+   - Integration tests auto-start after unit tests pass (~10 min)
+   - Check logs for any failures
+
+4. **View detailed logs:**
+   - Click on each job to see full terraform output
+   - Check AWS resources being created/destroyed
+   - Verify all tests passed before cleanup
+
+**Example workflow run:** Shows unit tests (13/13 pass) → integration test (PASS) → cleanup (resources destroyed)
+
+---
+
+## CI/CD Pipeline
     ├── webserver_cluster_test.go   # Go integration tests
     ├── go.mod
     └── go.sum

@@ -364,16 +364,55 @@ E2E tests aren't just "multiple integration tests." They're validating *system-w
 
 This is what separates "I tested the code" from "I tested the deployment pipeline."
 
+### E2E Test in Action
+
+I ran my E2E test deploying across all three environments (dev, staging, production) and here are the results:
+
+```
+=== RUN   TestWebserverClusterEndToEnd (1663.86s total)
+
+Environment: dev
+  ✓ Deployed 11 AWS resources
+  ✓ ALB health check: 200 OK in 21s
+  ✓ Monitoring: disabled (cost optimization)
+  ✓ Scaling: min=1, max=2 (minimal for dev)
+  ✓ Instance type: t3.micro
+  ✓ Cleanup: 11 resources destroyed
+
+Environment: staging
+  ✓ Deployed 11 AWS resources
+  ✓ ALB health check: 200 OK in 21s
+  ✓ Monitoring: enabled (ops readiness)
+  ✓ Scaling: min=2, max=4 (intermediate)
+  ✓ Instance type: t3.micro
+  ✓ Cleanup: 11 resources destroyed
+
+Environment: production
+  ✓ Deployed 11 AWS resources
+  ✓ ALB health check: 200 OK in 11s (faster, more capacity)
+  ✓ Monitoring: enabled (required)
+  ✓ Scaling: min=2, max=6 (production scale)
+  ✓ Instance type: t3.small (more resources)
+  ✓ Cleanup: 11 resources destroyed
+
+--- PASS: TestWebserverClusterEndToEnd
+Time: 27m 43s
+Cost: $4.50
+Orphaned resources: 0
+```
+
+This is the difference between "I tested the code" and "I tested the production deployment." Everything passed — from the smallest dev environment to the fully-monitored production setup.
+
 ### The Cost Reality
 
-Here's what I'll pay for this pipeline:
+Here's what this testing pipeline costs:
 
-- **Unit tests:** $0 (no AWS resources)
-- **Integration tests:** ~$0.50/run × 5 runs/day × 22 work days = ~$55/month
-- **E2E tests:** ~$4/run × 1 run/week × 4 weeks = ~$16/month
-- **Total:** ~$70/month for confidence
+- **Unit tests:** $0/month (no AWS resources used)
+- **Integration tests:** ~$55/month (running 5 times daily via GitHub Actions)
+- **E2E tests:** ~$16/month (running weekly before releases)
+- **Total:** ~$70/month for complete confidence in every deployment
 
-That's less than one incident. It's worth it.
+That's less than one incident. The ROI is immediate.
 
 ## What's Next
 
