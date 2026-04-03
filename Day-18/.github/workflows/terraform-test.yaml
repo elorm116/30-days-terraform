@@ -21,9 +21,9 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.10.0"
+          terraform_version: "1.14.6"
 
       - name: Terraform Init
         working-directory: Day-18/modules/services/webserver-cluster
@@ -83,9 +83,9 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: "1.10.0"
+          terraform_version: "1.14.6"
           # Required for Terratest to call terraform binary
           terraform_wrapper: false
 
