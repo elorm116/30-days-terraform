@@ -26,12 +26,12 @@ locals {
 
   # Centralised conditional logic — all environment decisions in one place.
   # Resources reference clean local names instead of scattered ternaries.
-  is_production       = var.environment == "production"
-  instance_type       = local.is_production ? "t3.small" : var.instance_type
-  min_size            = local.is_production ? 3 : var.min_size
-  max_size            = local.is_production ? 10 : var.max_size
-  health_check_grace  = local.is_production ? 300 : 120
-  log_retention_days  = local.is_production ? 90 : 7
+  is_production      = var.environment == "production"
+  instance_type      = local.is_production ? "t3.small" : var.instance_type
+  min_size           = local.is_production ? 3 : var.min_size
+  max_size           = local.is_production ? 10 : var.max_size
+  health_check_grace = local.is_production ? 300 : 120
+  log_retention_days = local.is_production ? 90 : 7
 }
 
 # -----------------------------

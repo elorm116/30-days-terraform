@@ -50,8 +50,8 @@ mock_provider "aws" {
 
   mock_resource "aws_launch_template" {
     defaults = {
-      id       = "lt-0123456789abcdef0"
-      arn      = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-0123456789abcdef0"
+      id             = "lt-0123456789abcdef0"
+      arn            = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-0123456789abcdef0"
       latest_version = 1
     }
   }
@@ -155,7 +155,7 @@ run "validate_web_sg_server_port" {
   # rule references another security group ID. Use a mocked apply in an
   # isolated state so this check remains deterministic and doesn't affect the
   # plan-only runs.
-  command   = apply
+  command = apply
 
   assert {
     condition = anytrue([
@@ -291,7 +291,7 @@ run "validate_bad_environment_rejected" {
   command = plan
 
   variables {
-    environment = "prod"  # invalid — must be dev, staging, or production
+    environment = "prod" # invalid — must be dev, staging, or production
   }
 
   expect_failures = [
@@ -306,7 +306,7 @@ run "validate_bad_instance_type_rejected" {
   command = plan
 
   variables {
-    instance_type = "m5.xlarge"  # invalid — must be t2 or t3 family
+    instance_type = "m5.xlarge" # invalid — must be t2 or t3 family
   }
 
   expect_failures = [
