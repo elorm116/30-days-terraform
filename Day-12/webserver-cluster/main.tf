@@ -327,10 +327,6 @@ resource "aws_autoscaling_group" "web" {
       min_healthy_percentage = 50
       instance_warmup        = 60
     }
-
-    triggers = ["launch_template"]
-
-
   }
 # #   lifecycle {
 # #     create_before_destroy = true

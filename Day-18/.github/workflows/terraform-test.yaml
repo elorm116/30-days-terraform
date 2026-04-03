@@ -1,0 +1,100 @@
+name: Terraform Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  # -----------------------------
+  # UNIT TESTS — run on every PR and push
+  # Fast, free, no AWS credentials needed
+  # Uses mock_provider so no real API calls made
+  # -----------------------------
+  unit-tests:
+    name: Unit Tests (terraform test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.0"
+
+      - name: Terraform Init
+        working-directory: Day-18/modules/services/webserver-cluster
+        run: terraform init
+
+      - name: Run Unit Tests
+        working-directory: Day-18/modules/services/webserver-cluster
+        run: terraform test
+        # No AWS credentials needed — mock_provider handles data sources
+
+  # -----------------------------
+  # INTEGRATION TESTS — run on push to main only
+  # Deploys real AWS infrastructure
+  # Needs AWS credentials from GitHub Secrets
+  # Only runs after unit tests pass
+  # -----------------------------
+  integration-tests:
+    name: Integration Tests (Terratest)
+    runs-on: ubuntu-latest
+
+    # Only run on push to main — not on PRs
+    # Reason: integration tests cost money and take 10-15 minutes.
+    # PRs get fast unit tests. Main branch gets full validation.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    # Must pass unit tests before spending money on real infrastructure
+    needs: unit-tests
+
+    env:
+      AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION:    us-east-1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.0"
+          # Required for Terratest to call terraform binary
+          terraform_wrapper: false
+
+      - name: Install Go dependencies
+        working-directory: Day-18/test
+        run: go mod download
+
+      - name: Run Integration Tests
+        working-directory: Day-18/test
+        # 30 minute timeout — ELB + ASG provisioning takes time
+        run: go test -v -timeout 30m -run TestWebserverClusterIntegration ./...
+
+      # Integration tests always clean up via defer terraform.Destroy
+      # but if the runner is killed mid-test resources may be orphaned.
+      # This step runs even on failure to catch any stragglers.
+      - name: Verify cleanup on failure
+        if: failure()
+        working-directory: Day-18/test
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          echo "Checking for orphaned test resources..."
+          aws ec2 describe-instances \
+            --filters "Name=tag:ManagedBy,Values=terraform" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].[InstanceId,Tags[?Key==`Name`].Value|[0]]' \
+            --output table
