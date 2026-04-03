@@ -29,6 +29,14 @@ jobs:
         working-directory: Day-18/modules/services/webserver-cluster
         run: terraform init
 
+      - name: Terraform Format Check
+        working-directory: Day-18/modules/services/webserver-cluster
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: Day-18/modules/services/webserver-cluster
+        run: terraform validate
+
       - name: Run Unit Tests
         working-directory: Day-18/modules/services/webserver-cluster
         run: terraform test
@@ -55,7 +63,7 @@ jobs:
     env:
       AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION:    us-east-1
+      AWS_DEFAULT_REGION:    ${{ secrets.AWS_DEFAULT_REGION }}
 
     steps:
       - name: Checkout code
@@ -65,6 +73,14 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -76,6 +92,19 @@ jobs:
       - name: Install Go dependencies
         working-directory: Day-18/test
         run: go mod download
+
+      - name: Terraform Plan (cost estimate)
+        working-directory: Day-18/modules/services/webserver-cluster
+        env:
+          AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:    ${{ secrets.AWS_DEFAULT_REGION }}
+          TF_VAR_environment: "test"
+        run: |
+          terraform init
+          terraform plan -out=tfplan
+          echo "## Terraform Cost Estimate" >> $GITHUB_STEP_SUMMARY
+          echo "Plan created successfully. Integration test will validate configuration." >> $GITHUB_STEP_SUMMARY
 
       - name: Run Integration Tests
         working-directory: Day-18/test
@@ -91,6 +120,7 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION:    ${{ secrets.AWS_DEFAULT_REGION }}
         run: |
           echo "Checking for orphaned test resources..."
           aws ec2 describe-instances \
