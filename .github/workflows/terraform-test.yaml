@@ -1,14 +1,11 @@
 name: Terraform Tests
 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   # -----------------------------
-  # UNIT TESTS — run on every PR and push
+  # UNIT TESTS — manual trigger only (learning & testing)
   # Fast, free, no AWS credentials needed
   # Uses mock_provider so no real API calls made
   # -----------------------------
@@ -92,7 +89,7 @@ jobs:
         # Variables passed via TF_VAR_* env vars reach destroy phase reliably
 
   # -----------------------------
-  # INTEGRATION TESTS — run on push to main only
+  # INTEGRATION TESTS — manual trigger only (after unit tests pass)
   # Deploys real AWS infrastructure
   # Needs AWS credentials from GitHub Secrets
   # Only runs after unit tests pass
