@@ -155,7 +155,6 @@ run "validate_web_sg_server_port" {
   # rule references another security group ID. Use a mocked apply in an
   # isolated state so this check remains deterministic and doesn't affect the
   # plan-only runs.
-  state_key = "validate_web_sg_server_port"
   command   = apply
 
   assert {
