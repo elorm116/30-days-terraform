@@ -1,7 +1,9 @@
 name: Terraform Tests
 
 on:
-  workflow_dispatch:
+  # Automatic trigger on PR to main — runs fast unit tests to validate code before merging
+  pull_request:
+    branches: [ main ]
 
 jobs:
   # -----------------------------
