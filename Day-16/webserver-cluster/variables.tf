@@ -142,5 +142,5 @@ variable "cpu_alarm_threshold" {
 variable "app_version" {
   description = "Application version string — changing this triggers a rolling update."
   type        = string
-  default     = "v1"
+  default     = "v3"
 }
