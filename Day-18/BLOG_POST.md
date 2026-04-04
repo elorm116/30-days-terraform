@@ -1,12 +1,8 @@
-# I Stopped Trusting Terraform Applies — So I Built a 3-Layer Testing System
+# I Stopped Trusting terraform apply — So I Built a 3-Layer Testing System
 
-**Date:** April 4, 2026  
-**Author:** Anthony Zottor  
-**Published on:** [Your Blog/Medium]
+From hoping my infrastructure works to knowing it works — with fast unit tests, real AWS integration tests, and full end-to-end validation.
 
 ## The Ritual We All Know Too Well
-
-I used to deploy infrastructure like this:
 
 ```bash
 terraform apply
@@ -15,630 +11,166 @@ terraform apply
 
 That's not testing. That's hoping.
 
-And hope is expensive in the cloud.
+And hope gets expensive in the cloud.
 
-For years, this worked: small infrastructure, few configs, manual reviews caught most issues. Then the infrastructure grew. Modules multiplied. Environments diverged. So did the failures.
+It worked fine when my setups were small — one environment, a handful of resources, easy to verify manually. But as things scaled (more modules, more environments, more edge cases), silent failures started slipping through.
 
-I'd deploy what looked correct on plan, and something would silently break in production. A security group rule didn't apply. IAM was missing a permission. The staging config broke because of a variables-only difference I didn't catch. Each incident cost time, credibility, and AWS dollars.
+A plan looked perfect, yet after deployment:
+- Security group rules didn't apply correctly
+- IAM permissions were missing
+- Staging behaved differently from production
 
-So I decided to build something better: **a system that tests infrastructure at three different levels — before deployment, during deployment, and across entire environment progressions.**
+Terraform didn't complain. It just deployed broken infrastructure.
 
-This is what I learned building that system. It's proven in production, battle-tested through real challenges, and I'm sharing the full implementation with code examples.
+That's when I stopped trusting `terraform apply` as validation — and built a 3-layer testing system instead.
 
----
+## The Hidden Truth About Terraform
 
-## The Hidden Truth About Terraform Deployments
+Terraform is excellent at provisioning infrastructure, but **it does not guarantee correctness**.
 
-Terraform is brilliant at provisioning infrastructure. But it does not guarantee *correctness*.
+You can easily:
+- Deploy something that looks fine in the plan but doesn't actually work
+- Ship silent misconfigurations
+- Break production with a seemingly harmless refactor
+- Miss environment-specific bugs
 
-You can:
-- Deploy infrastructure that *looks* fine but *doesn't work*
-- Miss environment-specific bugs that only break in production
-- Ship broken configs silently (Terraform doesn't yell; it just deploys)
-- Refactor code and accidentally break features
+Manual checks work… until they don't. Once your infrastructure grows beyond what one person can reliably verify, you need automated testing at multiple levels.
 
-**Manual testing works... until it doesn't.**
+## The 3-Layer Terraform Testing System
 
-The moment your infrastructure scales beyond what one person can verify in an afternoon, you need **automated tests that catch regressions before they reach production.**
-
-Here's the payoff:
-
-1. **Catch configuration errors before deployment** — Prevent misconfigured security groups, missing IAM permissions, invalid variable combinations
-2. **Prevent silent failures** — Verify infrastructure actually works, not just deploys  
-3. **Enable team scaling** — Junior engineers can refactor confidently; tests prove correctness
-4. **Reduce operational burden** — Fewer incidents, faster detection, more time building instead of firefighting
-
----
-
-## Three Layers of Terraform Testing (Each Solves a Different Problem)
+Each layer answers a different question:
 
 ### Layer 1: Unit Tests — "Does the Code Make Sense?" ⚡
 
-**Problem:** Catch obvious mistakes early, before wasting time and money on infrastructure.
+**Tool:** Native Terraform testing (terraform test with .tftest.hcl files)  
+**Time:** ~30 seconds  
+**Cost:** $0  
+**Deploys real infrastructure:** No
 
-**Time:** 30 seconds | **Cost:** $0 | **Deploys Real Infra:** No
+These tests validate your configuration before anything touches AWS. They catch logic errors, invalid variable combinations, broken references, and incorrect resource settings early.
 
-**What it catches:**
-- ❌ Syntax errors in HCL
-- ❌ Invalid variable combinations  
-- ❌ Wrong security group rules in the plan
-- ❌ Missing required attributes
+Example — Validating a security group rule:
 
-**What it DOESN'T catch:**
-- IAM permission errors (only happen during apply)
-- Resource quota limits (AWS API check)
-- Network connectivity issues
-- Application health
-
-**Tool:** Native Terraform 1.6+ testing framework (`.tftest.hcl` files)
-
-**Example — Validating Security Group Rules:**
 ```hcl
-run "validate_alb_sg_port" {
-  command = plan
-  
-  variables {
-    cluster_name  = "test-cluster"
-    min_size      = 1
-    max_size      = 2
-    environment   = "dev"
-  }
-  
-  assert {
-    condition = anytrue([
-      for rule in aws_security_group.alb.ingress :
-      rule.from_port == 80 && rule.protocol == "tcp"
-    ])
-    error_message = "ALB security group must allow HTTP (port 80)"
-  }
+assert {
+  condition = anytrue([
+    for rule in aws_security_group.alb_sg.ingress :
+    rule.from_port == 80 && rule.protocol == "tcp"
+  ])
+  error_message = "ALB security group must allow HTTP traffic on port 80"
 }
 ```
 
-**Why this matters:**  Instead of guessing if my security groups are correct, I assert them. If someone changes the port to 8080, this test fails immediately.
+**What they catch:**
+- ✅ Syntax errors in HCL
+- ✅ Invalid variable combinations
+- ✅ Wrong security group rules in the plan
+- ✅ Missing required attributes
 
-**When to use:** Run on **every PR and every commit**. They're fast and free — no reason to skip them.
+**What they DON'T catch:** IAM issues, network connectivity, or application health.
 
-**Real results from my test suite:**
-```
-✓ Unit Tests: 13/13 passing
-  - validate_asg_name_prefix: ✓
-  - validate_launch_template_instance_type: ✓
-  - validate_alb_sg_port: ✓
-  - validate_web_sg_server_port: ✓
-  - validate_elb_health_check_type: ✓
-  - (8 more...)
-Total time: 30 seconds
-```
+**When to run:** On every PR and every commit. They're fast, free, and give immediate feedback.
 
 ---
 
-### Layer 2: Integration Tests — "Does the Real Infrastructure Work?" 🏗️
+### Layer 2: Integration Tests — "Does It Actually Work in AWS?" 🏗️
 
-**Problem:** Unit tests passed, but does the actual AWS infrastructure work?
+**Tool:** Terratest (Go library)  
+**Time:** 9–15 minutes  
+**Cost:** Low (~$0.10 – $0.50 per run)  
+**Deploys real infrastructure:** Yes
 
-**Time:** 9.4 minutes | **Cost:** ~$0.50 | **Deploys Real Infra:** Yes
+This layer deploys real resources, verifies they behave as expected, and then tears them down.
 
-**What it catches:**
-- ✅ IAM permission errors (missing policies, trust relationships)
-- ✅ AWS resource quota limits
-- ✅ Network/security group misconfigurations
-- ✅ Load balancer health checks and routing  
-- ✅ Application health (HTTP 200 from ALB)
-- ✅ Output values are correct
-- ✅ Resource tags and monitoring are applied
+It catches real-world problems like IAM permission failures, security group misconfigurations, load balancer health checks, and actual application responses (e.g., HTTP 200).
 
-**What it DOESN'T catch:**
-- Cross-environment consistency (different settings per environment)
-- Orchestration issues (module dependencies)
-- Long-term behavior (scaling, auto-healing)
-- Production-scale load
-
-**Tool:** Terratest (Go library). Deploys real infrastructure, runs tests, then destroys everything.
-
-**Example — Full Module Deployment + Health Check:**
-```go
-func TestWebserverClusterIntegration(t *testing.T) {
-  uniqueID := random.UniqueId()
-  
-  terraformOptions := terraform.WithDefaultRetryableErrors(t, &terraform.Options{
-    TerraformDir: "../modules/services/webserver-cluster",
-    Vars: map[string]interface{}{
-      "cluster_name":  fmt.Sprintf("test-%s", uniqueID),
-      "environment":   "dev",
-      "min_size":      1,
-      "max_size":      2,
-    },
-  })
-  
-  // 🔥 CRITICAL: Always cleanup, even if test fails
-  defer terraform.Destroy(t, terraformOptions)
-  
-  // Deploy real infrastructure
-  terraform.InitAndApply(t, terraformOptions)
-  
-  // Verify application is accessible via load balancer
-  albDnsName := terraform.Output(t, terraformOptions, "alb_dns_name")
-  http_helper.HttpGetWithRetry(t, 
-    fmt.Sprintf("http://%s", albDnsName), 
-    nil, 200, "", 30, 10*time.Second)
-    
-  // Assert outputs are correct
-  assert.NotEmpty(t, albDnsName, "ALB DNS name should be populated")
-}
-```
-
-**Why this matters:**  Just because your plan looks good doesn't mean apply will work. I've had IAM policies missing, security groups misconfigured, and ALB health checks failing. This catches all of it.
-
-**When to use:** Run on **push to main** (after unit tests pass), NOT on every PR. They're too slow and expensive.
-
-**Real results:**
-```
-✓ Integration Test: PASS (563.86 seconds)
-  - Deployed: 11 AWS resources
-  - Health check: HTTP 200 in 21 seconds
-  - Monitoring enabled: ✓
-  - ALB DNS name: webserver-alb-1234567.us-east-1.elb.amazonaws.com
-  - Cleanup: All 11 resources destroyed
-```
-
----
-
-### Layer 3: End-to-End Tests — "Does the Entire System Work?" 🌍
-
-**Problem:** Unit tests passed. Integration tests passed. But what about the *system-wide* behavior? Does the same code work correctly in dev, staging, *and* production?
-
-**Time:** 27 minutes | **Cost:** ~$4.50 | **Deploys Real Infra:** Yes (3x)
-
-**What makes it "E2E" different:**
-- Deploys the same module to **multiple environments** (dev → staging → production)
-- Validates each environment has **different configurations** (dev is minimal, prod has monitoring)
-- Verifies **consistency across environments** (the same code works everywhere)
-- Tests **environment progression** (dev proves concept, staging proves scale, prod proves everything together)
-
-**What it catches:**
-- ✅ Environment-specific bugs (code that works in dev but breaks in prod)
-- ✅ Configuration inconsistencies (staging forgot to enable monitoring)
-- ✅ Scaling issues (module works with 1 instance, fails with 6)
-- ✅ Cross-environment policies (prod has different alarms than staging)
-
-**Tool:** Terratest (Go library), orchestrating deployments across multiple environments.
-
-**Example — E2E Deployment Across All Environments:**
-```go
-func TestWebserverClusterEndToEnd(t *testing.T) {
-  environments := map[string]map[string]interface{}{
-    "dev": {
-      "cluster_name":      "e2e-test-dev",
-      "min_size":          1,
-      "max_size":          2,
-      "enable_monitoring": false,
-      "instance_type":     "t3.micro",
-    },
-    "staging": {
-      "cluster_name":      "e2e-test-staging", 
-      "min_size":          2,
-      "max_size":          4,
-      "enable_monitoring": true,
-      "instance_type":     "t3.micro",
-    },
-    "production": {
-      "cluster_name":      "e2e-test-prod",
-      "min_size":          2,
-      "max_size":          6,
-      "enable_monitoring": true,
-      "instance_type":     "t3.small",  // Bigger instance in prod
-    },
-  }
-  
-  // Deploy to each environment in sequence
-  for env, vars := range environments {
-    defer terraform.Destroy(t, opts)  // Cleanup each environment
-    terraform.InitAndApply(t, opts)
-    verifyApplicationAccessible(t, opts)
-    verifyMonitoringEnabled(t, opts, vars)
-    verifyScalingPolicies(t, opts, vars)
-  }
-}
-```
-
-**Real E2E Test Results (27m 43s, All Passing):**
-```
-Environment: dev
-  ✓ Deployed 11 AWS resources
-  ✓ HTTP 200 in 21s (ALB warmup)
-  ✓ Monitoring: disabled ✓
-  ✓ Scaling: 1-2 instances ✓
-  ✓ Instance type: t3.micro ✓
-  ✓ Cleanup: All resources destroyed
-
-Environment: staging
-  ✓ Deployed 11 AWS resources
-  ✓ HTTP 200 in 21s
-  ✓ Monitoring: enabled ✓
-  ✓ Scaling: 2-4 instances ✓
-  ✓ Instance type: t3.micro ✓
-  ✓ Cleanup: All resources destroyed
-
-Environment: production
-  ✓ Deployed 11 AWS resources
-  ✓ HTTP 200 in 11s (better capacity)
-  ✓ Monitoring: enabled + all alarms ✓
-  ✓ Scaling: 2-6 instances ✓
-  ✓ Instance type: t3.small ✓
-  ✓ Cleanup: All resources destroyed
-
-Conclusion: PASS
-Orphaned resources: 0
-Total cost: $4.50
-```
-
-**Why this matters:**  A module can work in dev and completely break in production. E2E tests prove that the same code behaves correctly under all conditions.
-
-**When to use:** Run **weekly or before major releases** (manually triggered). Not on every commit — too expensive and slow.
-
----
-
-## Summary: Why You Need All Three Layers
-
-| Test Layer | Time | Cost | Deploys Real Infra | Speed | Use Case |
-|---|---|---|---|---|---|
-| **Unit** | 30s | $0 | No | Fast | Every commit, catch obvious bugs |
-| **Integration** | 9m | $0.50 | Yes | Medium | Before merging to main |
-| **End-to-End** | 27m | $4.50 | Yes (3x) | Slow | Before releases, weekly |
-
-**Here's the strategy:**
-- 🟢 Unit tests on **every PR** → Fast feedback to developers
-- 🟡 Integration tests on **main push** → Validate single environment (dev)
-- 🔴 E2E tests **weekly** → Validate all environments (dev, staging, prod)
-
-Skipping any layer hurts:
-- Skip unit tests → Catch obvious bugs too late
-- Skip integration tests → IAM/networking errors hit main
-- Skip E2E tests → Production discovers bugs (very expensive)
-
----
-
-## The Most Important Line of Code
-
-Listen carefully. This single line prevented more bugs than all the assertions combined:
+**The most important line of code:**
 
 ```go
 defer terraform.Destroy(t, terraformOptions)
 ```
 
-This ensures everything is cleaned up after the test, **even if the test fails**.
+This guarantee runs even if the test fails — preventing orphaned resources and surprise AWS bills.
 
-Why is this critical?
-
-**Real story:** I ran a test that hit AWS CloudWatch quota limits. The test failed. But the instances, ALB, and security groups kept running. I didn't notice for 6 hours. That one forgotten `defer` cost me $8 and a stressful afternoon hunting down orphaned resources.
-
-**Without `defer`:**
-- EC2 instances keep running
-- Load balancers stay billing ($15/day each)
-- Security groups and storage stay around
-- Costs spiral
-
-**With `defer`:**
-- Runs even if test fails (defer guarantees execution)
-- Runs even if timeout occurs (cleanup happens first-in-last-out)
-- Runs across multiple environments (proper dependency ordering)
-
-**The harsh truth:** If your test cleanup doesn't run, you will have orphaned resources. And you will find out about it because of the AWS bill.
+**When to run:** On merge to main (after unit tests pass).
 
 ---
 
-## Real Challenges I Faced (And How I Fixed Them)
+### Layer 3: End-to-End Tests — "Does It Work Across All Environments?" 🌍
 
-### Challenge 1: Security Groups Don't Have Indexable Ingress Rules
+**Tool:** Terratest  
+**Time:** 25–35 minutes  
+**Cost:** Higher (~$1 – $5 per run)  
+**Deploys real infrastructure:** Yes (multiple environments)
 
-**Error:** `Invalid index: Elements of a set are identified only by their value`
+E2E tests deploy the same module across dev, staging, and production (with environment-specific settings) to verify consistency and catch "works in dev, breaks in prod" issues.
 
-**Root cause:** Terraform defines security group ingress as a *set* (unordered, no index), not a *list*. You can't index into sets like `ingress[0]`.
+They validate scaling, monitoring, conditional logic, and configuration differences across environments.
 
-**❌ Wrong approach:**
-```hcl
-assert {
-  condition     = aws_security_group.alb.ingress[0].from_port == 80
-  error_message = "Port must be 80"
-}
-```
-
-**✅ Correct approach:**
-```hcl
-assert {
-  condition = anytrue([
-    for rule in aws_security_group.alb.ingress :
-    rule.from_port == 80 && rule.protocol == "tcp"
-  ])
-  error_message = "ALB security group must allow port 80"
-}
-```
-
-**Lesson:** Always iterate over sets with `for` expressions, never index them.
+**When to run:** Weekly or before major releases (manually triggered to control cost).
 
 ---
 
-### Challenge 2: Null Outputs Crash terraform.Output()
+## The Smart Strategy (Choose All Three)
 
-**Error:** `Error: output is null` when calling `terraform.Output()`
+| Layer | Speed | Cost | Coverage | Recommended Frequency |
+|---|---|---|---|---|
+| **Unit** | ⚡ Very Fast | $0 | Basic | Every PR / commit |
+| **Integration** | Medium | Low | Good | On merge to main |
+| **End-to-End** | 🐢 Slow | Higher | Excellent | Weekly or before releases |
 
-**Root cause:** When `enable_monitoring = false`, the `sns_topic_arn` output is `null`. Calling `terraform.Output()` on null panics.
+**Rule of thumb:** Start with unit tests (highest ROI), add integration tests next, then E2E tests once your modules mature.
 
-**❌ Wrong approach:**
-```go
-snsTopic := terraform.Output(t, opts, "sns_topic_arn")  // Fails if null
-```
-
-**✅ Correct approach:**
-```go
-// Check the boolean instead of the null string
-monitoringEnabled := terraform.Output(t, opts, "monitoring_enabled")
-assert.Equal(t, "false", monitoringEnabled)
-```
-
-**Lesson:** Don't try to retrieve optional outputs. Check if the feature is enabled instead.
+Each layer compensates for the weaknesses of the others.
 
 ---
 
-### Challenge 3: Variables Don't Reach the Destroy Phase
+## The Real Cost of Not Testing
 
-**Error:** `No value for required variable` during terraform destroy in GitHub Actions
+One broken deploy can cost hours of debugging. One orphaned resource can rack up real AWS money. One production incident can damage trust.
 
-**Root cause:** Terraform's test framework doesn't always pass variables to the destroy phase in non-interactive CI/CD environments.
+Compare that to:
+- ~$0 for unit tests
+- ~$0.10–$0.50 for integration tests
+- ~$1–$5 for E2E tests
 
-**Solution:** Defense-in-depth — provide variables three ways:
-
-**1️⃣ In .tftest.hcl (every run block):**
-```hcl
-run "test_something" {
-  command = plan
-  
-  variables {
-    cluster_name = "test-cluster"
-    min_size     = 1
-    # ... all required vars
-  }
-}
-```
-
-**2️⃣ As environment variables in GitHub Actions (TF_VAR_* strategy):**
-```yaml
-env:
-  TF_VAR_cluster_name: "test-cluster"
-  TF_VAR_min_size: "1"
-  TF_VAR_max_size: "2"
-  TF_VAR_environment: "dev"
-```
-
-**3️⃣ With defaults in variables.tf:**
-```hcl
-variable "min_size" {
-  default = 1
-}
-
-variable "max_size" {
-  default = 2
-}
-```
-
-Any one layer catching the variable ensures destroy works.
-
-**Lesson:** Don't rely on a single variable passing mechanism. Use all three.
+Testing isn't expensive. Not testing is.
 
 ---
 
-### Challenge 4: Previous Test Runs Leave Resources Running
+## Key Takeaways
 
-**Error:** 4 EC2 instances, 2 load balancers, 4 security groups still running after test "passed"
+1. **`terraform apply` is not validation** — Just because it deploys doesn't mean it works
+2. **Manual checks don't scale with complexity** — You need automated tests
+3. **You need multiple testing layers** — Each solves a different problem
+4. **Always use `defer terraform.Destroy()`** — Your future self (and AWS bill) will thank you
+5. **Automated testing turns hope into confidence** — Infrastructure without tests is just controlled risk
 
-**Root cause:** Test process crashed before reaching `defer terraform.Destroy()`, or state file was locked.
-
-**Solution — Multi-layer safeguards:**
-
-1. **Always `defer` cleanup** before any infrastructure deploys
-2. **Test locally first** before trusting GitHub Actions
-3. **Set strict test timeouts** (30m) to avoid runaway processes
-4. **Add a scheduled AWS cleanup job** (cloud-nuke) as a safety net
-5. **Tag all test resources** so cloud-nuke can target them
-
-```bash
-# Manual cleanup if needed
-aws ec2 describe-instances \
-  --query 'Reservations[].Instances[?State.Name==`running`].[InstanceId,Tags]' \
-  --output table
-
-aws ec2 terminate-instances --instance-ids i-1234567890abcdef0
-```
-
-**Lesson:** Cleanup is so important, add multiple layers. One will save you.
+**Final thought:** With this 3-layer system, I moved from "I think this will work" to "I know this will work" — before it ever hits production.
 
 ---
 
-## Cost vs Confidence: The Math
+## Full Technical Implementation
 
-Here's what this complete testing pipeline costs:
+Want implementation details, code examples, and troubleshooting for all the challenges we faced?
 
-| Test | Frequency | Time | Cost |
-|---|---|---|---|
-| Unit tests | Every commit | 30s | $0 |
-| Integration tests | Every push to main (~5 times/day) | 9m | $55/month |
-| E2E tests | Weekly | 27m | $16/month |
-| **Total** | — | — | **~$70/month** |
+👉 **[Full Technical Writeup on GitHub](https://github.com/elorm116/30-days-terraform/tree/main/Day-18)**
 
-**Is that expensive?**
-
-- A single production incident costs more in downtime, debugging, and fixes
-- One misconfigured security group or access control costs more than a year of testing
-- Preventing "works in dev, broken in prod" is worth every dollar
-
-**Compare:**
-- **No testing:** Infrastructure works until it doesn't (incident costs $1000+)
-- **This testing:** Complete confidence for $70/month
-
-The ROI is immediate.
+There you'll find:
+- ✅ All 13 unit test examples with explanations
+- ✅ Complete Terratest integration test code
+- ✅ End-to-end test orchestration (dev → staging → production)
+- ✅ Real challenges we solved (set indexing errors, null outputs, variable propagation)
+- ✅ GitHub Actions workflow with best practices
+- ✅ Cost breakdown and timing data
+- ✅ Defense-in-depth variable passing for CI/CD
 
 ---
 
-## Building the CI/CD Pipeline
+## What's Your Testing Pain Point?
 
-Here's my GitHub Actions workflow that runs tests automatically:
+Drop a comment — security groups, variable handling, cleanup issues, or something else?
 
-```yaml
-name: Terraform Tests
+If you found this helpful, follow along for more from my **#30DaysOfTerraform** challenge where I'm going from zero to production-grade IaC in one month.
 
-on:
-  workflow_dispatch:  # Manual trigger only (cost control)
-
-env:
-  AWS_DEFAULT_REGION: us-east-1
-
-jobs:
-  unit-tests:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.10.0"
-      
-      - name: Terraform Init, Format, Validate  
-        run: terraform init && terraform fmt -check && terraform validate
-        working-directory: Day-18/modules/services/webserver-cluster
-        env:
-          TF_VAR_cluster_name: "test-cluster"
-          TF_VAR_environment: "dev"
-          TF_VAR_min_size: "1"
-          TF_VAR_max_size: "2"
-          TF_VAR_instance_type: "t3.micro"
-          TF_VAR_project_name: "test-project"
-          TF_VAR_team_name: "test-team"
-          TF_VAR_enable_monitoring: "false"
-          TF_VAR_cpu_alarm_threshold: "80"
-          TF_VAR_app_version: "v1"
-      
-      - name: Run Unit Tests (terraform test)
-        run: terraform test -verbose
-        working-directory: Day-18/modules/services/webserver-cluster
-        env:
-          TF_VAR_cluster_name: "test-cluster"
-          TF_VAR_environment: "dev"
-          TF_VAR_min_size: "1"
-          TF_VAR_max_size: "2"
-          TF_VAR_instance_type: "t3.micro"
-          TF_VAR_project_name: "test-project"
-          TF_VAR_team_name: "test-team"
-          TF_VAR_enable_monitoring: "false"
-          TF_VAR_cpu_alarm_threshold: "80"
-          TF_VAR_app_version: "v1"
-
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    
-    env:
-      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-      AWS_DEFAULT_REGION: us-east-1
-      TF_VAR_cluster_name: "test-cluster"
-      TF_VAR_environment: "dev"
-      TF_VAR_min_size: "1"
-      TF_VAR_max_size: "2"
-      TF_VAR_instance_type: "t3.micro"
-      TF_VAR_project_name: "test-project"
-      TF_VAR_team_name: "test-team"
-      TF_VAR_enable_monitoring: "false"
-      TF_VAR_cpu_alarm_threshold: "80"
-      TF_VAR_app_version: "v1"
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - uses: actions/setup-go@v4
-        with:
-          go-version: "1.21"
-      
-      - uses: actions/cache@v4
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-      
-      - name: Run Integration Tests
-        run: go test -v -timeout 30m ./...
-        working-directory: Day-18/test
-```
-
-**Key decisions:**
-
-1. **Manual trigger only** (`workflow_dispatch`) → Control costs, run when you choose
-2. **Unit tests first** → Fast feedback (if they fail, skip expensive integration tests)
-3. **Integration tests depend on unit** (`needs: unit-tests`) → Fail-fast principle
-4. **All terraform commands get TF_VAR_* env vars** → Variables reach destroy phase
-5. **AWS credentials in GitHub Secrets** → Never commit credentials
-6. **Go module caching** → Speeds up integration tests by 2-3 minutes
-
----
-
-## Key Learnings & Takeaways
-
-### Unit vs Integration vs E2E
-
-The author was right: **you need all three layers, but you use them differently.**
-
-- **Unit tests** catch the obvious stuff fast. Run them constantly.
-- **Integration tests** catch the subtle bugs. Run them before merging.
-- **E2E tests** catch the "I forgot to configure staging differently than dev" bugs. Run them weekly.
-
-Skipping any layer is penny-wise, pound-foolish.
-
-### Why E2E Tests Matter
-
-E2E tests aren't just "multiple integration tests." They're validating *system-wide consistency* — things you can't test in isolation:
-
-- Does dev have fewer instances than staging? (scale verification)
-- Does production enable monitoring when dev doesn't? (ops readiness)
-- Can you deploy the exact same module code to all three environments? (code reusability)
-
-This is what separates "I tested the code" from "I tested the production deployment."
-
-### The Truth About Infrastructure Testing
-
-Infrastructure testing is fundamentally different from application testing. But it's not optional. It's the only way to scale infrastructure safely.
-
-Every incident I've had falls into one of these categories:
-1. Unit test would have caught it
-2. Integration test would have caught it  
-3. E2E test would have caught it
-
-So I built all three.
-
----
-
-## What's Next
-
-You're now equipped to:
-
-1. ✅ Write unit tests for any Terraform module in seconds
-2. ✅ Build integration tests that deploy real infrastructure and verify it
-3. ✅ Orchestrate E2E tests that validate environment progression
-4. ✅ Build a GitHub Actions pipeline that runs automatically
-
-The code is all on GitHub. Start with unit tests (fast feedback), add integration tests when your module is stable, and invest in E2E tests when managing multiple environments.
-
-**And please: always, always use `defer terraform.Destroy()`**. Future you will thank you. Future your-team will be even more grateful.
-
----
-
-## Resources
-
-- **Full code:** [Link to GitHub repo](https://github.com/elorm116/30-days-terraform/tree/main/Day-18)
-- **Book reference:** *Terraform: Up & Running* by Yevgeniy Brikman, Chapter 9
-- **Terratest docs:** https://terratest.gruntwork.io/
-- **Terraform testing docs:** https://developer.hashicorp.com/terraform/language/tests
-
----
-
-*This is part of my 30-Day Terraform Challenge journey. Follow along as I go from zero to Terraform expert in one month.*
+**Happy testing!**
