@@ -154,16 +154,17 @@ Testing isn't expensive. Not testing is.
 
 Want implementation details, code examples, and troubleshooting for all the challenges we faced?
 
-👉 **[Full Technical Writeup on GitHub](https://github.com/elorm116/30-days-terraform/tree/main/Day-18)**
+👉 **[Read the Complete Technical Writeup](https://github.com/elorm116/30-days-terraform/blob/main/Day-18/TECHNICAL_WRITEUP.md)**
 
-There you'll find:
-- ✅ All 13 unit test examples with explanations
+This deep-dive covers:
+- ✅ All 13 unit test examples with code & explanations
 - ✅ Complete Terratest integration test code
 - ✅ End-to-end test orchestration (dev → staging → production)
 - ✅ Real challenges we solved (set indexing errors, null outputs, variable propagation)
-- ✅ GitHub Actions workflow with best practices
-- ✅ Cost breakdown and timing data
+- ✅ Complete GitHub Actions workflow with best practices
+- ✅ Cost breakdown and actual timing data
 - ✅ Defense-in-depth variable passing for CI/CD
+- ✅ Exact execution results from our test runs
 
 ---
 
