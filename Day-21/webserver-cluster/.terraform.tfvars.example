@@ -19,5 +19,5 @@ custom_message            = "Development v3"
 enable_destroy_protection = false
 app_version               = "v3"
 enable_monitoring         = true
-alarm_email               = "aezottor@gmail.com"  # Non-sensitive: Alarms go here
+alarm_email               = "email"
 cpu_alarm_threshold       = 75
