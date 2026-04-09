@@ -8,13 +8,15 @@ terraform {
     }
   }
 
-  # backend "s3" {}
-
   cloud {
-    organization = "cradx"  
+    organization = "cradx"
 
     workspaces {
       name = "webserver-cluster-dev"
     }
   }
-  }
+}
+
+provider "aws" {
+  region = var.region
+}
