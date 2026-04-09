@@ -12,7 +12,7 @@ variable "cluster_name" {
 variable "min_size" {
   description = "The minimum number of EC2 Instances in the ASG"
   type        = number
-  
+
   validation {
     condition     = var.min_size >= 1
     error_message = "The ASG must have at least 1 instance for high availability."
