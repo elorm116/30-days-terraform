@@ -14,8 +14,9 @@ variable "min_size" {
   type        = number
 
   validation {
-    condition     = var.min_size >= 1
-    error_message = "The ASG must have at least 1 instance for high availability."
+    # This ensures high availability by requiring at least 2 instances
+    condition     = var.min_size >= 2
+    error_message = "The ASG must have at least 2 instances to ensure high availability for Day 22."
   }
 }
 
@@ -32,6 +33,12 @@ variable "desired_capacity" {
   description = "The desired number of EC2 Instances in the ASG"
   type        = number
   default     = 2
+
+  validation {
+    # Ensures desired is never below the absolute minimum of 2
+    condition     = var.desired_capacity >= 2
+    error_message = "The desired capacity must be at least 2 to match the high availability min_size."
+  }
 }
 
 variable "server_port" {
