@@ -23,7 +23,7 @@ locals {
   # The ManagedBy = "Terraform" tag is required by Sentinel policy
   # require-terraform-tag.sentinel — it MUST be present on every resource.
   common_tags = {
-    ManagedBy   = "Terraform"          # Sentinel-enforced — do not remove
+    ManagedBy   = "Terraform" # Sentinel-enforced — do not remove
     Project     = "30DayTerraformChallenge"
     Day         = "22"
     Environment = terraform.workspace
@@ -165,12 +165,12 @@ resource "aws_launch_template" "webserver" {
   }
 
   monitoring {
-    enabled = true  # Detailed CloudWatch monitoring — required for alarm accuracy
+    enabled = true # Detailed CloudWatch monitoring — required for alarm accuracy
   }
 
   metadata_options {
     http_endpoint               = "enabled"
-    http_tokens                 = "required"   # IMDSv2 — security best practice
+    http_tokens                 = "required" # IMDSv2 — security best practice
     http_put_response_hop_limit = 1
   }
 

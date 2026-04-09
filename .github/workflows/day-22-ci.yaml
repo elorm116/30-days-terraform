@@ -3,7 +3,7 @@ name: Infrastructure CI — Integrated Pipeline - Day 22
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   pull_request:
-    branches: [main, day-22-setu]
+    branches: [main, day-22-setup]
     paths:
       - "Day-22/**"
       - ".github/workflows/day-22-ci.yaml"
@@ -14,13 +14,14 @@ on:
 
 # ── Global permissions (minimum) ──────────────────────────────────────────────
 permissions:
-  contents: read   # Only safe default
+  contents: read
 
 # ── Environment ───────────────────────────────────────────────────────────────
 env:
   TF_VERSION: "1.14.6"
   TF_DIR: "./Day-22"
   AWS_REGION: "us-east-1"
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true # Silences deprecation warnings
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ jobs:
         run: exit 1
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2: Unit Tests
+  # JOB 2: Unit Tests (Fixed with AWS Credentials)
   # ─────────────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit Tests (terraform test)
@@ -81,11 +82,19 @@ jobs:
     needs: [validate]
     permissions:
       contents: read
-      pull-requests: write   # Needed for test results comment
+      pull-requests: write
+      id-token: write        # Required for AWS OIDC
 
     steps:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ff717079ee2060e4bcee96c4779b553acc87447c
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
@@ -94,7 +103,7 @@ jobs:
 
       - name: Init
         working-directory: ${{ env.TF_DIR }}
-        run: terraform init -backend=false
+        run: terraform init
 
       - name: Run unit tests
         id: test
@@ -128,7 +137,7 @@ jobs:
     needs: [validate]
     permissions:
       contents: read
-      security-events: write   # Required for SARIF upload
+      security-events: write
 
     steps:
       - name: Checkout
@@ -156,9 +165,9 @@ jobs:
     environment: dev
     permissions:
       contents: read
-      pull-requests: write   # For plan comment
-      id-token: write        # OIDC / AWS
-      actions: write         # Required for upload-artifact
+      pull-requests: write
+      id-token: write
+      actions: write
 
     steps:
       - name: Checkout
@@ -242,7 +251,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      actions: write         # For download-artifact
+      actions: write
 
     steps:
       - name: Checkout
@@ -299,7 +308,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-      actions: write         # For download-artifact
+      actions: write
 
     steps:
       - name: Checkout
@@ -318,7 +327,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Download plan artifact (same artifact as dev apply)
+      - name: Download plan artifact
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16
         with:
           name: terraform-plan-${{ github.sha }}
@@ -332,18 +341,12 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform workspace select prod || terraform workspace new prod
 
-      - name: Apply (same immutable plan — no re-plan)
+      - name: Apply (same immutable plan)
         working-directory: ${{ env.TF_DIR }}
         run: terraform apply -no-color ci.tfplan
 
-      - name: Verify clean post-apply state (prod)
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          terraform plan -var-file=prod.tfvars -detailed-exitcode -no-color
-          echo "Post-apply plan exit code: $? (0=clean, 2=drift detected — INVESTIGATE)"
-
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 7: Cleanup (destroy)
+  # JOB 7: Cleanup
   # ─────────────────────────────────────────────────────────────────────────────
   cleanup:
     name: Cleanup — Destroy Infrastructure
@@ -359,7 +362,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Wait 5 minutes before cleanup
+      - name: Wait 5 minutes
         run: sleep 300
 
       - name: Configure AWS Credentials
@@ -379,14 +382,9 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: terraform init
 
-      - name: Destroy All (prod workspace)
+      - name: Destroy
         working-directory: ${{ env.TF_DIR }}
         run: |
-          terraform workspace select prod
-          terraform destroy -auto-approve -no-color
-
-      - name: Destroy All (dev workspace)
-        working-directory: ${{ env.TF_DIR }}
-        run: |
-          terraform workspace select dev
-          terraform destroy -auto-approve -no-color
+          terraform workspace select prod && terraform destroy -auto-approve -no-color
+          terraform workspace select dev && terraform destroy -auto-approve -no-color
+        

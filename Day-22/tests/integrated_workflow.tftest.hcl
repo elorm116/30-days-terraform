@@ -140,7 +140,7 @@ run "reject_non_approved_instance_type" {
 
   variables {
     cluster_name  = "test-cluster"
-    instance_type = "m5.large"   # Not in approved list — should fail
+    instance_type = "m5.large" # Not in approved list — should fail
     server_port   = 8080
     min_size      = 2
     max_size      = 4
@@ -157,7 +157,7 @@ run "reject_privileged_port" {
   variables {
     cluster_name  = "test-cluster"
     instance_type = "t3.micro"
-    server_port   = 443        # Privileged — should fail validation
+    server_port   = 443 # Privileged — should fail validation
     min_size      = 2
     max_size      = 4
     alert_emails  = []
@@ -174,7 +174,7 @@ run "reject_single_instance_cluster" {
     cluster_name  = "test-cluster"
     instance_type = "t3.micro"
     server_port   = 8080
-    min_size      = 1          # Below HA minimum
+    min_size      = 1 # Below HA minimum
     max_size      = 4
     alert_emails  = []
   }
