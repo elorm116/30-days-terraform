@@ -1,0 +1,20 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "chore(deps)"
+    groups:
+      actions:
+        # Bundles ALL action updates into a single PR → keeps git history clean
+        patterns:
+          - "actions/*"
+          - "hashicorp/*"
+    # Optional but helpful: only create PRs for actual releases (not every commit)
+    # Dependabot will still update to the latest stable SHA of the tag
