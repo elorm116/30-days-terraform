@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write  
+      issues: write           # Needed for commenting on PRs
 
     steps:
       - name: Checkout
