@@ -38,6 +38,12 @@ variable "server_port" {
   description = "The port the server will use for HTTP requests"
   type        = number
   default     = 8080
+
+  validation {
+    # Ensures the port is in the 'user' or 'dynamic' range (> 1024)
+    condition     = var.server_port > 1024 && var.server_port <= 65535
+    error_message = "The server_port must be a non-privileged port between 1025 and 65535."
+  }
 }
 
 variable "instance_type" {
