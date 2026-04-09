@@ -34,7 +34,6 @@ resource "aws_cloudwatch_metric_alarm" "day21_asg_cpu_high" {
   dimensions = {
     AutoScalingGroupName = module.webserver_cluster.asg_name
   }
-
   treat_missing_data = "notBreaching"
 
   alarm_actions = local.day21_alarm_actions
