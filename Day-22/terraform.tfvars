@@ -1,8 +1,8 @@
 aws_region               = "us-east-1"
 cluster_name             = "test-cluster"
-min_size                 = 1
-max_size                 = 2
-desired_capacity         = 1
+min_size                 = 2
+max_size                 = 4
+desired_capacity         = 2
 server_port              = 8080
 instance_type            = "t3.micro"
 alert_emails             = []
