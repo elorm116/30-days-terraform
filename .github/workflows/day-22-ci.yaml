@@ -3,12 +3,12 @@ name: Infrastructure CI — Integrated Pipeline - Day 22
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   pull_request:
-    branches: ["**"] # Apply jobs on PRs to any branch (can be restricted if desired)
+    branches: [main]                    # Only PRs targeting main
     paths:
       - "Day-22/**"
       - ".github/workflows/day-22-ci.yaml"
   push:
-    branches: [main] # Apply jobs trigger on merge to main
+    branches: [main]                    # Only real merges to main
     paths:
       - "Day-22/**"
 
@@ -21,18 +21,18 @@ env:
   TF_VERSION: "1.14.6"
   TF_DIR: "./Day-22"
   AWS_REGION: "us-east-1"
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true 
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 1: Validate & Lint (Standardized Formatting)
+  # JOB 1: Validate & Lint
   # ─────────────────────────────────────────────────────────────────────────────
   validate:
     name: Validate & Lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write  
+      pull-requests: write
       issues: write
 
     steps:
@@ -76,7 +76,7 @@ jobs:
         run: exit 1
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 2: Unit Tests (8/8 logic gates)
+  # JOB 2: Unit Tests
   # ─────────────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit Tests (terraform test)
@@ -131,7 +131,7 @@ jobs:
             });
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 3: Security Scan (tfsec)
+  # JOB 3: Security Scan
   # ─────────────────────────────────────────────────────────────────────────────
   security-scan:
     name: Security Scan (tfsec)
@@ -157,14 +157,14 @@ jobs:
           sarif_file: tfsec.sarif
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 4: Plan (The Immutable Artifact Creator)
+  # JOB 4: Plan (creates the immutable artifact)
+  # Runs on BOTH PRs (for review) and on push to main
   # ─────────────────────────────────────────────────────────────────────────────
   plan:
     name: Plan (dev workspace)
     runs-on: ubuntu-latest
     needs: [validate, unit-tests, security-scan]
-    # BEST PRACTICE: Runs on PR to verify, and on Main to create the final artifact for Apply
-    if: (github.event_name == 'pull_request') || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     environment: dev
     permissions:
       contents: read
@@ -225,16 +225,14 @@ jobs:
             const fs = require('fs');
             const plan = fs.readFileSync('${{ env.TF_DIR }}/plan_output.txt', 'utf8');
             const maxLen = 60000;
-            const body = plan.length > maxLen
-              ? plan.substring(0, maxLen) + '\n\n_(truncated — see full output in CI logs)_'
-              : plan;
+            const body = plan.length > maxLen ? plan.substring(0, maxLen) + '\n\n_(truncated)_' : plan;
             const outcome = '${{ steps.plan.outcome }}';
             const icon = outcome === 'success' ? '✅' : '❌';
             await github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## ${icon} Terraform Plan — dev\n\n<details><summary>Click to expand</summary>\n\n\`\`\`hcl\n${body}\n\`\`\`\n\n</details>\n\n**Artifact:** \`terraform-plan-${{ github.sha }}\``
+              body: `## ${icon} Terraform Plan — dev\n\n<details><summary>Click to expand</summary>\n\n\`\`\`hcl\n${body}\n\`\`\`\n\n</details>`
             });
 
       - name: Fail if plan failed
@@ -242,14 +240,13 @@ jobs:
         run: exit 1
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 5: Apply (dev) - Automated Deploy to Dev
+  # JOB 5: Apply (dev) — runs ONLY on merge to main
   # ─────────────────────────────────────────────────────────────────────────────
   apply-dev:
     name: Apply (dev workspace)
     runs-on: ubuntu-latest
     needs: [plan]
-    # BEST PRACTICE: Only deploy to infra on a real merge/push to main
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main'          # Simplified & reliable
     environment: dev
     permissions:
       contents: read
@@ -292,15 +289,14 @@ jobs:
         run: terraform apply -no-color ci.tfplan
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 6: Apply (prod) - Manual Approval Deployment
+  # JOB 6: Apply (prod) — runs ONLY on merge to main (after dev)
   # ─────────────────────────────────────────────────────────────────────────────
   apply-prod:
     name: Apply (prod workspace)
     runs-on: ubuntu-latest
     needs: [apply-dev]
-    # Wait for Dev to succeed first
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: prod # BEST PRACTICE: Set up "Required Reviewers" in GitHub for this env
+    if: github.ref == 'refs/heads/main'
+    environment: prod
     permissions:
       contents: read
       id-token: write
@@ -342,14 +338,13 @@ jobs:
         run: terraform apply -no-color ci.tfplan
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 7: Cleanup (Destroys only if ALL deployments succeeded)
+  # JOB 7: Cleanup (only on successful full run)
   # ─────────────────────────────────────────────────────────────────────────────
   cleanup:
     name: Cleanup — Destroy Infrastructure
     runs-on: ubuntu-latest
     needs: [apply-prod]
-    # BEST PRACTICE: Use 'success()' to ensure we only cleanup after a perfect run
-    if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: success() && github.ref == 'refs/heads/main'
     environment: dev
     permissions:
       contents: read
@@ -382,5 +377,6 @@ jobs:
       - name: Destroy All Environments
         working-directory: ${{ env.TF_DIR }}
         run: |
-          terraform workspace select prod && terraform destroy -auto-approve -no-color
-          terraform workspace select dev && terraform destroy -auto-approve -no-color
+          terraform workspace select prod && terraform destroy -auto-approve -no-color || true
+          terraform workspace select dev && terraform destroy -auto-approve -no-color || true
+        
