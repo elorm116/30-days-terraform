@@ -1,23 +1,20 @@
-name: Infrastructure CI — Integrated Pipeline
+name: Infrastructure CI — Integrated Pipeline - Day 22
 
 # ── Triggers ──────────────────────────────────────────────────────────────────
 on:
   pull_request:
-    branches: [main]
+    branches: [main, day-22-setu]
     paths:
       - "Day-22/**"
       - ".github/workflows/day-22-ci.yaml"
   push:
-    branches: [main]
+    branches: [main, day-22-setup]
     paths:
       - "Day-22/**"
 
-# ── Global permissions ────────────────────────────────────────────────────────
+# ── Global permissions (minimum) ──────────────────────────────────────────────
 permissions:
-  contents: read
-  pull-requests: write
-  id-token: write        # OIDC → AWS
-  security-events: write # SARIF upload for tfsec
+  contents: read   # Only safe default
 
 # ── Environment ───────────────────────────────────────────────────────────────
 env:
@@ -25,15 +22,15 @@ env:
   TF_DIR: "./Day-22"
   AWS_REGION: "us-east-1"
 
-# ─────────────────────────────────────────────────────────────────────────────
-# JOB 1: Validate & Lint
-# Runs on every PR. No AWS credentials needed — uses -backend=false.
-# This is the cheapest and fastest gate; fail here early.
-# ─────────────────────────────────────────────────────────────────────────────
 jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Validate & Lint
+  # ─────────────────────────────────────────────────────────────────────────────
   validate:
     name: Validate & Lint
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -77,13 +74,14 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 2: Unit Tests
-  # Runs terraform test — the native test framework.
-  # Uses plan-only mode, no actual AWS provisioning.
   # ─────────────────────────────────────────────────────────────────────────────
   unit-tests:
     name: Unit Tests (terraform test)
     runs-on: ubuntu-latest
     needs: [validate]
+    permissions:
+      contents: read
+      pull-requests: write   # Needed for test results comment
 
     steps:
       - name: Checkout
@@ -123,13 +121,14 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 3: Security Scan (tfsec)
-  # Static analysis — no AWS credentials needed.
-  # SARIF results uploaded to GitHub Security tab.
   # ─────────────────────────────────────────────────────────────────────────────
   security-scan:
     name: Security Scan (tfsec)
     runs-on: ubuntu-latest
     needs: [validate]
+    permissions:
+      contents: read
+      security-events: write   # Required for SARIF upload
 
     steps:
       - name: Checkout
@@ -148,9 +147,6 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 4: Plan (dev)
-  # Generates an immutable plan artifact from the dev workspace.
-  # Posts the full plan output as a PR comment.
-  # The saved plan file IS the artifact that gets promoted to production.
   # ─────────────────────────────────────────────────────────────────────────────
   plan:
     name: Plan (dev workspace)
@@ -158,6 +154,11 @@ jobs:
     needs: [validate, unit-tests]
     if: github.event_name == 'pull_request'
     environment: dev
+    permissions:
+      contents: read
+      pull-requests: write   # For plan comment
+      id-token: write        # OIDC / AWS
+      actions: write         # Required for upload-artifact
 
     steps:
       - name: Checkout
@@ -195,10 +196,6 @@ jobs:
             2>&1 | tee plan_output.txt
         continue-on-error: true
 
-      # ── The immutable artifact ───────────────────────────────────────────────
-      # This saved plan file (ci.tfplan) is the artifact promoted through envs.
-      # apply-dev and apply-prod both download and apply this exact file —
-      # they do NOT re-run terraform plan. What was reviewed is what gets applied.
       - name: Upload plan artifact (immutable)
         uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a
         with:
@@ -206,7 +203,7 @@ jobs:
           path: |
             ${{ env.TF_DIR }}/ci.tfplan
             ${{ env.TF_DIR }}/plan_output.txt
-          retention-days: 7   # Plans older than 7 days cannot be applied
+          retention-days: 7
 
       - name: Comment plan on PR
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea
@@ -233,8 +230,6 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 5: Apply (dev)
-  # Runs on merge to main. Downloads the SAME plan artifact generated in Job 4.
-  # Never re-generates the plan — promotes the exact reviewed artifact.
   # ─────────────────────────────────────────────────────────────────────────────
   apply-dev:
     name: Apply (dev workspace)
@@ -244,6 +239,10 @@ jobs:
     environment:
       name: dev
       url: https://app.terraform.io/app/mali-org/workspaces/dev
+    permissions:
+      contents: read
+      id-token: write
+      actions: write         # For download-artifact
 
     steps:
       - name: Checkout
@@ -288,9 +287,6 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 6: Apply (prod)
-  # Manual approval required (GitHub Environment protection rule).
-  # Downloads the SAME plan artifact from Job 4 — not re-generated.
-  # Sentinel policies in Terraform Cloud enforce additional gates at this stage.
   # ─────────────────────────────────────────────────────────────────────────────
   apply-prod:
     name: Apply (prod workspace)
@@ -300,8 +296,10 @@ jobs:
     environment:
       name: prod
       url: https://app.terraform.io/app/mali-org/workspaces/prod
-    # The 'prod' environment in GitHub has a required reviewer configured.
-    # This job will pause until a named approver clicks "Approve" in the UI.
+    permissions:
+      contents: read
+      id-token: write
+      actions: write         # For download-artifact
 
     steps:
       - name: Checkout
@@ -346,15 +344,16 @@ jobs:
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 7: Cleanup (destroy)
-  # Automatically destroys all infrastructure 5 minutes after apply-prod completes.
-  # This prevents runaway costs while allowing verification that resources were created.
   # ─────────────────────────────────────────────────────────────────────────────
   cleanup:
     name: Cleanup — Destroy Infrastructure
     runs-on: ubuntu-latest
     needs: [apply-prod]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: always() && github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: dev
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
