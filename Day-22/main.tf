@@ -28,7 +28,7 @@ locals {
     Day         = "22"
     Environment = terraform.workspace
     Owner       = "mali"
-    Repository  = "github.com/elorm116/30-day-terraform-challenge"
+    Repository  = "github.com/elorm116/30-days-terraform"
   }
 }
 
@@ -55,6 +55,11 @@ data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
+  }
+
+  filter {
+    name   = "availability-zone"
+    values = ["us-east-1a", "us-east-1b", "us-east-1c", "us-east-1d"]
   }
 }
 
