@@ -40,5 +40,5 @@ output "cloudwatch_alarm_unhealthy_hosts_arn" {
 
 output "sns_topic_alarms_arn" {
   description = "ARN of the SNS topic for alarms"
-  value       = try(aws_sns_topic.alarms[0].arn, null)
+  value       = length(var.alert_emails) > 0 ? aws_sns_topic.alerts.arn : null
 }

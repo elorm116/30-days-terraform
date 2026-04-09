@@ -357,5 +357,3 @@ resource "aws_cloudwatch_metric_alarm" "scale_in_trigger" {
   alarm_actions       = [aws_autoscaling_policy.scale_in.arn]
   dimensions          = { AutoScalingGroupName = aws_autoscaling_group.webserver.name }
 }
-
-resource "aws_sns_topic" "alarms" {}
