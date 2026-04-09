@@ -75,6 +75,43 @@ resource "aws_s3_bucket" "alb_logs" {
   force_destroy = terraform.workspace != "prod"
 }
 
+resource "aws_s3_bucket_policy" "allow_alb_logging" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          # This service principal covers modern regions
+          Service = "logdelivery.elasticloadbalancing.amazonaws.com"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
+        Condition = {
+          StringEquals = {
+            "s3:x-amz-acl" = "bucket-owner-full-control"
+          }
+        }
+      },
+      {
+        # For us-east-1, the legacy ALB Account ID is 127311923021
+        # Some AWS configurations still require this specific principal
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::127311923021:root"
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/alb/AWSLogs/${data.aws_caller_identity.current.account_id}/*"
+      }
+    ]
+  })
+}
+
+# You'll also need this data source at the top with your others
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket_versioning" "alb_logs" {
   bucket = aws_s3_bucket.alb_logs.id
   versioning_configuration {
