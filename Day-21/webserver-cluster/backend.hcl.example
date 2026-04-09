@@ -1,0 +1,17 @@
+# Terraform Cloud Backend Configuration (from backend.tf)
+
+# This file documents the TFC backend setup.
+# The actual configuration is in backend.tf (backend block).
+
+# Reference: Your workspace is configured in backend.tf
+organization = "cradx"
+workspace    = "webserver-cluster-dev"
+
+# When you run: terraform init
+# Terraform connects to TFC using:
+# 1. Your TFC API token (~/.terraform/cloud_credentials)
+# 2. The organization and workspace names
+# 3. AWS credentials from TFC environment variables
+
+# Note: This .hcl file is optional documentation.
+# The authoritative config is in backend.tf in the terraform cloud {} block.
