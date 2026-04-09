@@ -1,0 +1,23 @@
+# TEMPLATE: Copy this to terraform.tfvars and customize for your environment
+# 
+# This file contains NON-SENSITIVE configuration data.
+# It SHOULD be committed to Git so the team sees what's running.
+#
+# SENSITIVE data (like AWS credentials) goes in Terraform Cloud UI instead.
+
+region                    = "us-east-1"
+cluster_name              = "webservers-dev"
+environment               = "dev"
+project_name              = "30-day-terraform"
+team_name                 = "devops"
+min_size                  = 3
+max_size                  = 10
+instance_type             = "t3.micro"
+server_port               = 8080
+alb_port                  = 80
+custom_message            = "Development v3"
+enable_destroy_protection = false
+app_version               = "v3"
+enable_monitoring         = true
+alarm_email               = "aezottor@gmail.com"  # Non-sensitive: Alarms go here
+cpu_alarm_threshold       = 75
