@@ -10,6 +10,4 @@ min_size                 = 3
 max_size                 = 10
 desired_capacity         = 3
 cpu_alarm_threshold_high = 75
-cpu_alarm_threshold_low  = 15
 alert_emails             = ["anthonyzottor@gmail.com"]
-env_name                 = "production-pipeline-test"

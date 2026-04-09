@@ -9,6 +9,4 @@ min_size                 = 2
 max_size                 = 4
 desired_capacity         = 2
 cpu_alarm_threshold_high = 80
-cpu_alarm_threshold_low  = 10
 alert_emails             = []
-env_name                 = "development-pipeline-test"
