@@ -11,9 +11,9 @@ on:
     paths:
       - "Day-21/**"
 
+# Workflow level: Minimum access for all jobs
 permissions:
   contents: read
-  pull-requests: write
 
 env:
   TF_VERSION: "1.14.6"
@@ -48,17 +48,10 @@ jobs:
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate -no-color
 
-      - name: Comment format result on PR
-        if: github.event_name == 'pull_request' && steps.fmt.outcome == 'failure'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: '❌ **Terraform Format Check Failed**\n\nRun `terraform fmt -recursive` locally and commit the changes.'
-            })
+      # NOTE: This comment step will fail without write permissions. 
+      # Since 'validate' only has 'read', I recommend moving the comment 
+      # logic or adding permissions here if you specifically want lint comments.
+      # For now, we'll focus on the 'plan-dev' fix.
 
   # ── Security Scan ───────────────────────────────────────────────────────────
   security:
@@ -72,12 +65,16 @@ jobs:
         uses: aquasecurity/tfsec-action@v1.0.3
         with:
           working_directory: ${{ env.TF_WORKING_DIR }}
-          soft_fail: true   # report but don't block — review manually
+          soft_fail: true
 
   # ── Plan (dev) ──────────────────────────────────────────────────────────────
   plan-dev:
     name: Plan (dev)
     runs-on: ubuntu-latest
+    # JOB LEVEL PERMISSIONS: Explicitly granted here to allow PR comments
+    permissions:
+      contents: read
+      pull-requests: write 
     needs: [validate]
     if: github.event_name == 'pull_request'
 
@@ -129,25 +126,20 @@ jobs:
     name: Terraform Test (unit)
     runs-on: ubuntu-latest
     needs: [validate]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
-
       - name: Run Terraform Tests
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform test -no-color
-
 
   # ── Apply (dev) — main branch only ─────────────────────────────────────────
   apply-dev:
@@ -155,21 +147,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [terraform-test]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ env.TF_VERSION }}
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
-
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform init
-
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve -no-color
+        
