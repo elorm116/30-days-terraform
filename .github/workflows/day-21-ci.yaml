@@ -1,4 +1,4 @@
-name: Terraform Infrastructure Day 21 CI
+name: Terraform Infrastructure Day-21 CI
 
 on:
   pull_request:
