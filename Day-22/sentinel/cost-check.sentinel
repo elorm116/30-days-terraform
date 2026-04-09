@@ -1,0 +1,59 @@
+# sentinel/cost-check.sentinel
+#
+# POLICY: Monthly Cost Increase Gate
+#
+# Blocks any apply that would increase the projected monthly infrastructure cost
+# by more than the configured threshold ($50/month). This is a financial control
+# that prevents runaway spending — whether from a misconfigured autoscaling group,
+# an accidentally large RDS instance, or a forgotten NAT Gateway.
+#
+# Enforcement level: soft-mandatory
+#   A workspace admin can override with a documented reason (e.g., "approved Q4
+#   capacity increase — see RFC-2024-047"). The override creates an audit trail.
+#
+# Cost estimation in Terraform Cloud:
+#   Terraform Cloud runs cost estimation after every plan by querying AWS pricing
+#   APIs. The estimate covers EC2, RDS, ELB, NAT Gateway, and most common
+#   services. It is not perfect (data transfer costs, usage-based pricing) but
+#   it catches the large, obvious cost increases.
+#
+# What this BLOCKS automatically:
+#   - Any plan that increases monthly cost by more than $50
+#   - Common mistakes: wrong instance size, too many instances, forgotten
+#     resources left running in dev that compound over months
+#
+# What this ALLOWS (without override):
+#   - Any plan that adds less than $50/month of new cost
+#   - Cost-reducing changes (negative delta is always allowed)
+#
+# Threshold rationale:
+#   $50/month = ~$600/year. This is large enough to allow meaningful changes
+#   (adding 2-3 t3.micro instances, an ALB, a handful of CloudWatch alarms)
+#   but small enough to catch accidental large resource provisioning.
+
+import "tfrun"
+import "decimal"
+
+# ── Cost threshold ────────────────────────────────────────────────────────────
+maximum_monthly_increase = decimal.new(50.0)
+
+# ── Parse cost delta from Terraform Cloud cost estimation ─────────────────────
+# delta_monthly_cost is positive for cost increases, negative for decreases
+proposed = decimal.new(tfrun.cost_estimate.proposed_monthly_cost)
+prior     = decimal.new(tfrun.cost_estimate.prior_monthly_cost)
+delta     = proposed - prior
+
+# ── Rule: cost increase must stay below threshold ─────────────────────────────
+cost_increase_acceptable = rule {
+  delta <= maximum_monthly_increase
+}
+
+# ── Rule: always allow cost reductions ───────────────────────────────────────
+# Redundant with the above but explicit for readability
+cost_reduction_always_ok = rule {
+  delta < decimal.new(0)
+}
+
+main = rule {
+  cost_reduction_always_ok or cost_increase_acceptable
+}

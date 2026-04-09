@@ -1,0 +1,90 @@
+# sentinel/require-terraform-tag.sentinel
+#
+# POLICY: All Resources Must Have ManagedBy = "Terraform" Tag
+#
+# Enforces that every managed resource created or modified by Terraform carries
+# a ManagedBy = "Terraform" tag. This is a foundational governance control:
+# it makes every Terraform-managed resource instantly identifiable in the AWS
+# Console, in billing reports, and in compliance audits.
+#
+# Enforcement level: hard-mandatory
+#   Cannot be overridden. If the tag is missing, the apply is blocked.
+#
+# Why this matters for a solo DevOps setup or a growing team:
+#   Without this tag, it becomes impossible to distinguish resources that are
+#   managed by Terraform from resources created manually in the Console. Over
+#   time, untagged resources accumulate and the state file drifts from reality.
+#   This policy prevents that drift at the source.
+#
+# What this BLOCKS:
+#   - Any aws_instance, aws_s3_bucket, aws_security_group, aws_lb, etc. that
+#     does not carry the exact tag key "ManagedBy" with value "Terraform"
+#   - Resources where the tag is present but misspelled ("managedBy", "terraform")
+#
+# What this ALLOWS:
+#   - All resources that carry ManagedBy = "Terraform" (any additional tags fine)
+#   - Delete operations (we only check resources being created or updated)
+#
+# Tag exemptions:
+#   Some AWS resource types do not support tagging (e.g. aws_iam_policy_attachment,
+#   aws_route). These are excluded from the check via the untag_exempt list below.
+
+import "tfplan/v2" as tfplan
+
+# ── Required tag key and value ────────────────────────────────────────────────
+required_tag_key   = "ManagedBy"
+required_tag_value = "Terraform"
+
+# ── Resource types that do not support AWS tags ────────────────────────────────
+# Extend this list as needed for your AWS provider version
+untag_exempt_types = [
+  "aws_iam_policy_attachment",
+  "aws_iam_role_policy_attachment",
+  "aws_iam_user_policy_attachment",
+  "aws_iam_group_membership",
+  "aws_route",
+  "aws_route_table_association",
+  "aws_subnet_route_table_association",
+  "aws_main_route_table_association",
+  "aws_security_group_rule",
+  "aws_autoscaling_attachment",
+  "aws_lb_listener_rule",
+  "aws_lb_target_group_attachment",
+  "aws_s3_bucket_policy",
+  "aws_s3_bucket_lifecycle_configuration",
+  "aws_s3_bucket_versioning",
+  "aws_cloudwatch_log_subscription_filter",
+  "aws_sns_topic_subscription",
+]
+
+# ── Helper: does this resource change create or update (not delete)? ──────────
+is_create_or_update = func(rc) {
+  return rc.change.actions contains "create" or
+         rc.change.actions contains "update"
+}
+
+# ── Helper: is this resource type required to carry tags? ─────────────────────
+requires_tag = func(rc) {
+  return rc.type not in untag_exempt_types
+}
+
+# ── Helper: does the resource have the required tag? ──────────────────────────
+has_required_tag = func(rc) {
+  tags = rc.change.after.tags else {}
+  return tags[required_tag_key] is required_tag_value
+}
+
+# ── Rule: all taggable resources must carry ManagedBy = "Terraform" ───────────
+all_resources_tagged = rule {
+  all tfplan.resource_changes as _, rc {
+    rc.mode is "managed" and
+    is_create_or_update(rc) and
+    requires_tag(rc)
+  } implies {
+    has_required_tag(rc)
+  }
+}
+
+main = rule {
+  all_resources_tagged
+}
