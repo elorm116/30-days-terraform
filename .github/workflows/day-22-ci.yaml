@@ -58,8 +58,10 @@ jobs:
       - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd
         with:
           terraform_version: ${{ env.TF_VERSION }}
-      - name: Run terraform test
-        run: terraform test -no-color
+      - name: Init and Run terraform test
+        run: |
+          terraform init -backend=false
+          terraform test -no-color
         working-directory: ${{ env.TF_DIR }}
 
   security-scan:
