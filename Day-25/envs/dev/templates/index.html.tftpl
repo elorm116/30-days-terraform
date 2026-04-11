@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Day ${day} — 30-Day Terraform Challenge</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --accent: #79c0ff;
+      --green: #3fb950;
+      --blue: #1f6feb;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .container { max-width: 640px; width: 100%; }
+    .header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .day-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.3rem 1rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 1.25rem;
+    }
+    .env-badge {
+      display: inline-block;
+      background: ${environment == "production" ? "#3fb950" : environment == "staging" ? "#d29922" : "#1f6feb"};
+      color: ${environment == "production" ? "#0d1117" : environment == "staging" ? "#0d1117" : "#fff"};
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.7rem;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+    h1 {
+      font-size: 2.25rem;
+      font-weight: 700;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+      color: var(--text);
+    }
+    .subtitle {
+      font-size: 1rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 1rem;
+    }
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .stat label { font-size: 0.75rem; color: var(--muted); display: block; margin-bottom: 2px; }
+    .stat value { font-family: "SF Mono", "Fira Code", monospace; font-size: 0.875rem; color: var(--accent); }
+    .stack-list { list-style: none; }
+    .stack-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0.5rem 0;
+    }
+    .stack-list li::before {
+      content: "→";
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+    .code-block {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: "SF Mono", "Fira Code", monospace;
+      font-size: 0.8rem;
+      color: var(--accent);
+      overflow-x: auto;
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="day-badge">
+        🚀 Day ${day}
+      </div>
+      <h1>
+        Static Website on S3 + CloudFront
+        <span class="env-badge">${environment}</span>
+      </h1>
+      <p class="subtitle">
+        Deployed with Terraform — Infrastructure as Code in action.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Deployment Details</div>
+      <div class="stat-grid">
+        <div class="stat">
+          <label>Bucket Name</label>
+          <value>${bucket_name}</value>
+        </div>
+        <div class="stat">
+          <label>Environment</label>
+          <value>${environment}</value>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🏗️ Architecture Stack</div>
+      <ul class="stack-list">
+        <li>S3 bucket for static content storage</li>
+        <li>CloudFront CDN for global edge distribution</li>
+        <li>Origin Access Identity (OAI) for secure access</li>
+        <li>Website configuration with index/error documents</li>
+        <li>Terraform-managed infrastructure as code</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💡 Key Features</div>
+      <ul class="stack-list">
+        <li><strong>Global CDN:</strong> Content cached at 600+ edge locations</li>
+        <li><strong>Security:</strong> S3 blocks all public access; only CloudFront can read</li>
+        <li><strong>Static Hosting:</strong> Automatic index document serving at root</li>
+        <li><strong>Cost Efficient:</strong> No compute; pay only for storage + transfer</li>
+        <li><strong>Scalable:</strong> Handles millions of requests per second</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔄 Invalidate Cache (After Updates)</div>
+      <div class="code-block">
+        aws cloudfront create-invalidation \
+          --distribution-id YOUR_DIST_ID \
+          --paths '/*'
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>✅ Successfully deployed with Terraform — Day ${day} Challenge</p>
+      <p style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--muted);">
+        Part of the 30-Day Terraform Challenge
+      </p>
+    </div>
+  </div>
+</body>
+</html>
