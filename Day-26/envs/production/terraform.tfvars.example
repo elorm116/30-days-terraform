@@ -1,0 +1,22 @@
+# Example production values
+# Copy to terraform.tfvars and replace placeholders before applying.
+
+app_name    = "web-challenge-day26"
+environment = "production"
+
+ami_id = "ami-REPLACE_ME"
+
+instance_type = "t3.small"
+key_name      = null
+
+vpc_id             = "vpc-REPLACE_ME"
+public_subnet_ids  = ["subnet-REPLACE_ME_1", "subnet-REPLACE_ME_2"]
+private_subnet_ids = ["subnet-REPLACE_ME_3", "subnet-REPLACE_ME_4"]
+
+min_size         = 2
+max_size         = 10
+desired_capacity = 3
+
+cpu_scale_out_threshold      = 70
+cpu_scale_in_threshold       = 30
+high_request_count_threshold = 2000
